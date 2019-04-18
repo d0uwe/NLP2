@@ -62,9 +62,10 @@ class IBM1:
 
 			for e in self.en_words:
 				for f in self.fr_words:
+				if total[f] == 0:
+					self.t[e][f] = 0
+				else:
 					self.t[e][f] = counts[e][f] / total[f]
-		# for e,f in product(list(self.en_words), list(self.fr_words)):
-		# 	self.t[e][f] = counts[e][f] / total[f]
 
 
 
@@ -79,4 +80,9 @@ e = read_data("data/training/hansards.36.2.e")
 f = read_data("data/training/hansards.36.2.f")
 ibm1 = IBM1(e, f)
 ibm1.EM()
+<<<<<<< HEAD
 print(imb1.t['limits'])
+=======
+print(ibm1.t['limits'])
+# print(e[:10])
+>>>>>>> 8d74ea5aba5c8e56d4bb70562c2b6795d85e7904
