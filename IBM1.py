@@ -37,14 +37,13 @@ class IBM1:
 
 		self.en_words, self.fr_words = en_words, fr_words
 		print(1/len(en_words))
+		print(len(en_words))
+		print(len(fr_words))
 
 		self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
-	def logprob(self):
 
-
-
-	def EM(self):
+	def EM(self, iterations):
 		for iter in range(iterations):
 			print("Currently running iteration: {0}".format(iter))
 			counts = defaultdict(lambda: defaultdict(float))
@@ -52,8 +51,9 @@ class IBM1:
 			s_total = defaultdict(float)
 
 			for i, (e_sen, f_sen) in enumerate(zip(self.e, self.f)):
-				ef = product(e_sen, f_sen)
+				ef = product(e_sen.split(), f_sen.split())
 				for e, f in ef:
+
 					s_total[e] += self.t[e][f]
 
 				for e, f in ef:
@@ -62,27 +62,15 @@ class IBM1:
 
 			for e in self.en_words:
 				for f in self.fr_words:
-				if total[f] == 0:
-					self.t[e][f] = 0
-				else:
-					self.t[e][f] = counts[e][f] / total[f]
-
-
-
-
-		
-
-
-
+					if total[f] == 0:
+						self.t[e][f] = 0
+					else:
+						print("jippie geen nul")
+						self.t[e][f] = counts[e][f] / total[f]
 
 
 e = read_data("data/training/hansards.36.2.e")
 f = read_data("data/training/hansards.36.2.f")
-ibm1 = IBM1(e, f)
-ibm1.EM()
-<<<<<<< HEAD
-print(imb1.t['limits'])
-=======
-print(ibm1.t['limits'])
-# print(e[:10])
->>>>>>> 8d74ea5aba5c8e56d4bb70562c2b6795d85e7904
+ibm1 = IBM1(e[:1000], f[:1000])
+ibm1.EM(1)
+# print(ibm1.t["is"])
