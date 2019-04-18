@@ -40,50 +40,31 @@ class IBM1:
 
 		self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
-	# def create_vocab(self):
-	# 	e_lines, f_lines = self.e, self.f
+	def logprob(self):
 
-	# 	vocab = defaultdict(lambda: defaultdict(int))
-	# 	alignment = defaultdict(lambda: defaultdict(float))
-
-	# 	for i, (e_sen, f_sen) in enumerate(zip(e_lines, f_lines)):
-	# 		e_sen = e_sen.strip().split()
-	# 		f_sen = f_sen.strip().split()
-	# 		ef = product(range(len(e_sen)), range(len(f_sen)))
-	# 		for idx_e, idx_f in ef:
-	# 			alignments[idx_e][idx_f] 
-	# 			vocab[e][f] += self.t[e][f]
-
-	# 	self._vocab = vocab
-
-	# 	cpd = defaultdict(lambda: defaultdict(float))
-	# 	for e, f_dict in vocab.items():
-	# 		total = sum(f_dict.values())
-	# 		for f, count in f_dict.items():
-	# 			cpd[e][f] = f/total
-
-	# 	self._cpd = cpd
-
-
-	# def create_alignments():
 
 
 	def EM(self):
-		counts = defaultdict(lambda: defaultdict(float))
-		total = defaultdict(float)
-		s_total = defaultdict(float)
+		for iter in range(iterations):
+			print("Currently running iteration: {0}".format(iter))
+			counts = defaultdict(lambda: defaultdict(float))
+			total = defaultdict(float)
+			s_total = defaultdict(float)
 
-		for i, (e_sen, f_sen) in enumerate(zip(self.e, self.f)):
-			ef = product(e_sen, f_sen)
-			for e, f in ef:
-				s_total[e] += self.t[e][f]
+			for i, (e_sen, f_sen) in enumerate(zip(self.e, self.f)):
+				ef = product(e_sen, f_sen)
+				for e, f in ef:
+					s_total[e] += self.t[e][f]
 
-			for e, f in ef:
-				count[e][f] += self.t[e][f] / s_total[e]
-				total[f] += self.t[e][f] / s_total[e]
+				for e, f in ef:
+					counts[e][f] += self.t[e][f] / s_total[e]
+					total[f] += self.t[e][f] / s_total[e]
 
-		for e,f in zip(list(self.en_words), list(self.fr_words)):
-			self.t[e][f] = counts[e][f] / total[f]
+			for e in self.en_words:
+				for f in self.fr_words:
+					self.t[e][f] = counts[e][f] / total[f]
+		# for e,f in product(list(self.en_words), list(self.fr_words)):
+		# 	self.t[e][f] = counts[e][f] / total[f]
 
 
 
@@ -99,4 +80,3 @@ f = read_data("data/training/hansards.36.2.f")
 ibm1 = IBM1(e, f)
 ibm1.EM()
 print(imb1.t['limits'])
-# print(e[:10])
