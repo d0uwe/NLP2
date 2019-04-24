@@ -8,6 +8,7 @@ from itertools import product
 import matplotlib.pyplot as plt
 # import pickle
 import dill
+import numpy as np
 
 from aer import read_naacl_alignments, AERSufficientStatistics
 
@@ -106,7 +107,24 @@ class IBM1:
 		Output:
 			a: 		an optimal alignment
 		'''
-		x=1
+		print("printing:")
+		e_sen = e_sen.split()
+		f_sen = f_sen.split()
+		print(e_sen)
+		print()
+		matrix = np.zeros((len(e_sen), len(f_sen)))
+		for i, e_word in enumerate(e_sen):
+			for j, f_word in enumerate(f_sen):
+				matrix[i][j] = self.t[e_word][f_word]
+
+		alignment=[]
+		num_cols = len(f_sen)
+		for i in range(num_cols):
+			col = matrix[:,i]
+			e_word = np.argmax(col)
+			alignment += [e_word]
+		print(alignment)
+		
 
 
 
@@ -117,7 +135,7 @@ class IBM1:
 
 
 # Change to true if model should be loaded from pickle
-load_model = False
+load_model = True
 
 e = read_data("data/training/hansards.36.2.e")#[:1000]
 f = read_data("data/training/hansards.36.2.f")#[:1000]
@@ -126,15 +144,17 @@ ef = list(set(zip(e,f)))
 e, f = zip(*ef)
 
 if load_model:
-	ibm1 = dill.load(open("ibm1.p", 'r'))
-	logprobs = dill.load(open("logprobs_ibm1.p", 'r'))
+	ibm1 = dill.load(open("ibm1.p", 'rb'))
+	logprobs = dill.load(open("logprobs_ibm1.p", 'rb'))
 else:
 	ibm1 = IBM1(e, f)
 	logprobs = ibm1.EM(1)
 	dill.dump(ibm1, open("ibm1.p", 'w'))
 	dill.dump(logprobs, open("logprobs_ibm1.p", 'w'))
 
+ibm1.viterbi(e[1], f[1])
 
-plt.plot(logprobs)
-plt.show()
+
+#plt.plot(logprobs)
+#plt.show()
 
