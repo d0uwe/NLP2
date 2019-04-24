@@ -5,6 +5,9 @@ Tim Smit, Tessa Wagenaar and Douwe van der Wal
 
 from collections import defaultdict, Counter
 from itertools import product
+import matplotlib.pyplot as plt
+# import pickle
+import dill
 
 from aer import read_naacl_alignments, AERSufficientStatistics
 
@@ -25,6 +28,7 @@ class IBM1:
 		self._init_t()
 
 	def _init_t(self):
+
 		en_words = set()
 		for e_sen in self.e:
 			for e in e_sen.split():
@@ -39,14 +43,19 @@ class IBM1:
 		self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
 	def logprob(self):
+		logprob = 0
 		for e,f in zip(self.e, self.f):
-			e = e.split()
+			e = ["NULL"] + e.split()
 			f = f.split()
+			m = len(f)
 			l = len(e)
 			pa = 1 / (1 + l)
-			log_pfe = 1
+			log_pfe = sum([np.log(pa * sum([self.t[e[a]][f[j]] for a in range(l)])) for j in range(m)])
+			logprob += log_pfe
+		return logprob
 
 	def EM(self, iterations):
+		logprobs = []
 		for iter in range(iterations):
 			print("Currently running iteration: {0}".format(iter))
 			counts = defaultdict(lambda: defaultdict(float))
@@ -54,11 +63,11 @@ class IBM1:
 			s_total = defaultdict(float)
 
 			print("E-step")
-			for i, (e_sen, f_sen) in enumerate(zip(self.e, self.f)):
-				e_sen = e_sen.split()
+			for e_sen, f_sen in zip(self.e, self.f):
+				e_sen = ["NULL"] + e_sen.split()
 				f_sen = f_sen.split()
-				ef = product(e_sen, f_sen)
 
+				ef = product(e_sen, f_sen)
 				for e, f in ef:
 					s_total[e] += self.t[e][f]
 				
@@ -69,17 +78,63 @@ class IBM1:
 
 			
 			print("M-step")
-			for e in self.en_words:
-				for f in self.fr_words:
-					if total[f] == 0:
-						self.t[e][f] = 0.0
-					else:
-						self.t[e][f] = counts[e][f] / total[f]
-	
+			for e_sen, f_sen in zip(self.e, self.f):
+				e_sen = ["NULL"] + e_sen.split()
+				f_sen = f_sen.split()
+				ef = product(e_sen, f_sen)
+
+				for e, f in ef:
+					self.t[e][f] = counts[e][f] / total[f]
+
+			logprobs.append(self.logprob())
+
+		return logprobs
+
+			# for e in self.en_words:
+			# 	for f in self.fr_words:
+			# 		if total[f] == 0:
+			# 			self.t[e][f] = 0.0
+			# 		else:
+			# 			self.t[e][f] = counts[e][f] / total[f]
+
+	def viterbi(self, e_sen, f_sen):
+		'''
+		Input:
+			e_sen: 	an english sentence
+			f_sen: 	a french sentence
+
+		Output:
+			a: 		an optimal alignment
+		'''
+		x=1
 
 
 
-e = read_data("data/training/hansards.36.2.e")[:1000]
-f = read_data("data/training/hansards.36.2.f")[:1000]
-ibm1 = IBM1(e, f)
-ibm1.EM(1)
+
+
+
+		
+
+
+# Change to true if model should be loaded from pickle
+load_model = False
+
+e = read_data("data/training/hansards.36.2.e")#[:1000]
+f = read_data("data/training/hansards.36.2.f")#[:1000]
+print(Counter(zip(e,f)).most_common(10))
+ef = list(set(zip(e,f)))
+e, f = zip(*ef)
+
+if load_model:
+	ibm1 = dill.load(open("ibm1.p", 'r'))
+	logprobs = dill.load(open("logprobs_ibm1.p", 'r'))
+else:
+	ibm1 = IBM1(e, f)
+	logprobs = ibm1.EM(1)
+	dill.dump(ibm1, open("ibm1.p", 'w'))
+	dill.dump(logprobs, open("logprobs_ibm1.p", 'w'))
+
+
+plt.plot(logprobs)
+plt.show()
+
