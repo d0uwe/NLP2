@@ -25,13 +25,14 @@ class IBM2:
         self.t = {}
         self._vocab = {}
         self._cpd = {}
-        self._alignment_cpd = {}
+        self._alignment_cpd = defaultdict(int)
+        for i in range(-5, 6):
+            self._alignment_cpd[i] = 0.1
         self.e = e_lines
         self.f = f_lines
         self._init_t()
 
     def _init_t(self):
-
         en_words = set()
         for e_sen in self.e:
             for e in e_sen.split():
@@ -46,7 +47,7 @@ class IBM2:
         self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
     def jump(self, aj, j, l, m):
-        return aj - floor(j * (l/m))
+        return aj - np.floor(j * (l/m))
 
     def logprob_sentence(self, e, f):
         e = ["NULL"] + e.split()
@@ -96,6 +97,7 @@ class IBM2:
             counts = defaultdict(lambda: defaultdict(float))
             total = defaultdict(float)
             s_total = defaultdict(float)
+            alignment_sum = defaultdict(float)
 
             print("E-step")
             for e_sen, f_sen in zip(self.e, self.f):
@@ -103,13 +105,20 @@ class IBM2:
                 f_sen = f_sen.split()
 
                 ef = product(e_sen, f_sen)
-                for e, f in ef:
-                    s_total[e] += self.t[f][e]
+                pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
+
+                for (e, f), (i, j) in zip(ef, pos):
+                    if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
+                        s_total[e] += self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))]
                 
                 ef = product(e_sen, f_sen)
-                for e, f in ef:
-                    counts[f][e] += self.t[f][e] / s_total[e]
-                    total[f] += self.t[f][e] / s_total[e]
+                pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
+                for (e, f), (i, j) in zip(ef, pos):
+                    if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
+                        prob = self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))] / s_total[e]
+                        counts[f][e] += prob
+                        total[f] += prob
+                        alignment_sum[self.jump(i, j, len(e_sen), len(f_sen))] += prob
 
             
             print("M-step")
@@ -119,9 +128,16 @@ class IBM2:
                 ef = product(e_sen, f_sen)
 
                 for e, f in ef:
-                    self.t[f][e] = counts[f][e] / total[f]
+                    if total[f] == 0:
+                        self.t[f][e] = 0
+                    else:
+                        self.t[f][e] = counts[f][e] / total[f]
 
-            print("Evaluation")
+            # updating alignment probabilities
+            total_alignment_prob = sum(alignment_sum.values())
+            for key in self._alignment_cpd.keys():
+                self._alignment_cpd[key] = alignment_sum[key] / total_alignment_prob
+
             aers.append(self.evaluate_aer())
             logprobs.append(self.logprob())
 
@@ -159,32 +175,26 @@ class IBM2:
 
 
 
-
-
-
-		
-
-
 # Change to true if model should be loaded from pickle
 load_model = False
 
-e = read_data("data/training/hansards.36.2.e")#[:1000]
-f = read_data("data/training/hansards.36.2.f")#[:1000]
+e = read_data("data/training/hansards.36.2.e")[:1000]
+f = read_data("data/training/hansards.36.2.f")[:1000]
 ef = list(set(zip(e,f)))
 e, f = zip(*ef)
 
 if load_model:
-    ibm1 = dill.load(open("ibm1.p", 'rb'))
-    logprobs = dill.load(open("logprobs_ibm1.p", 'rb'))
-    aers = dill.load(open("aers_ibm1.p", 'rb'))
+    ibm2 = dill.load(open("ibm2.p", 'rb'))
+    logprobs = dill.load(open("logprobs_ibm2.p", 'rb'))
+    aers = dill.load(open("aers_ibm2.p", 'rb'))
 else:
-    ibm1 = IBM1(e, f)
-    logprobs, aers = ibm1.EM(5)
-    dill.dump(ibm1, open("ibm1.p", 'wb'))
-    dill.dump(logprobs, open("logprobs_ibm1.p", 'wb'))
-    dill.dump(aers, open("aers_ibm1.p", 'wb'))
+    ibm2 = IBM2(e, f)
+    logprobs, aers = ibm2.EM(5)
+    dill.dump(ibm2, open("ibm2.p", 'wb'))
+    dill.dump(logprobs, open("logprobs_ibm2.p", 'wb'))
+    dill.dump(aers, open("aers_ibm2.p", 'wb'))
 
-ibm1.viterbi(e[1], f[1])
+ibm2.viterbi(e[1], f[1])
 
 
 plt.figure()
