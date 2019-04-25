@@ -21,13 +21,13 @@ def read_data(filename):
     return e
 
 class IBM2: 
-    def __init__(self, e_lines, f_lines):
+    def __init__(self, e_lines, f_lines, L):
         self.t = {}
         self._vocab = {}
         self._cpd = {}
         self._alignment_cpd = defaultdict(int)
-        for i in range(-5, 6):
-            self._alignment_cpd[i] = 0.1
+        for i in range(-L, L+1):
+            self._alignment_cpd[i] = 1/(2*L)
         self.e = e_lines
         self.f = f_lines
         self._init_t()
@@ -45,6 +45,15 @@ class IBM2:
 
         self.en_words, self.fr_words = en_words, fr_words
         self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
+
+    def random_init(self):
+        for e_sen, f_sen in zip(self.e, self.f):
+            e_sen = ["NULL"] + e_sen.split()
+            f_sen = f_sen.split()
+            ef = product(e_sen, f_sen)
+            for e,f in ef:
+                self.t[e][f] = random()
+
 
     def jump(self, aj, j, l, m):
         return aj - np.floor(j * (l/m))
@@ -107,18 +116,21 @@ class IBM2:
                 ef = product(e_sen, f_sen)
                 pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
 
-                for (e, f), (i, j) in zip(ef, pos):
-                    if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
+                # for (e, f), (i, j) in zip(ef, pos):
+                #     if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
+                for i, e in enumerate(e_sen):
+                    s_total[e] = 0.
+                    for j, f in enumerate(f_sen):
                         s_total[e] += self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))]
                 
                 ef = product(e_sen, f_sen)
                 pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
                 for (e, f), (i, j) in zip(ef, pos):
-                    if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
-                        prob = self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))] / s_total[e]
-                        counts[f][e] += prob
-                        total[f] += prob
-                        alignment_sum[self.jump(i, j, len(e_sen), len(f_sen))] += prob
+                    # if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
+                    prob = (self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))]) / s_total[e]
+                    counts[f][e] += prob
+                    total[f] += prob
+                    alignment_sum[self.jump(i, j, len(e_sen), len(f_sen))] += prob
 
             
             print("M-step")
@@ -159,7 +171,7 @@ class IBM2:
         matrix = np.zeros((len(e_sen), len(f_sen)))
         for i, e_word in enumerate(e_sen):
             for j, f_word in enumerate(f_sen):
-                matrix[i][j] = self.A[self.jump(i,j,l,m)] * self.t[f_word][e_word]
+                matrix[i][j] = self._alignment_cpd[self.jump(i,j,l,m)] * self.t[f_word][e_word]
 
         alignment=[]
         num_cols = len(f_sen)
@@ -178,18 +190,20 @@ class IBM2:
 # Change to true if model should be loaded from pickle
 load_model = False
 
-e = read_data("data/training/hansards.36.2.e")[:1000]
-f = read_data("data/training/hansards.36.2.f")[:1000]
+e = read_data("data/training/hansards.36.2.e")#[:1000]
+f = read_data("data/training/hansards.36.2.f")#[:1000]
 ef = list(set(zip(e,f)))
 e, f = zip(*ef)
+lens = [len(eb.split()) for eb in e]
 
 if load_model:
     ibm2 = dill.load(open("ibm2.p", 'rb'))
     logprobs = dill.load(open("logprobs_ibm2.p", 'rb'))
     aers = dill.load(open("aers_ibm2.p", 'rb'))
 else:
-    ibm2 = IBM2(e, f)
-    logprobs, aers = ibm2.EM(5)
+    ibm2 = IBM2(e, f, max(lens))
+    # ibm2.random_init()
+    logprobs, aers = ibm2.EM(10)
     dill.dump(ibm2, open("ibm2.p", 'wb'))
     dill.dump(logprobs, open("logprobs_ibm2.p", 'wb'))
     dill.dump(aers, open("aers_ibm2.p", 'wb'))
@@ -199,11 +213,11 @@ ibm2.viterbi(e[1], f[1])
 
 plt.figure()
 plt.plot(logprobs)
-plt.savefig("train_logprobs.png")
+plt.savefig("train_logprobs_ibm2.png")
 plt.close()
 
 plt.figure()
 plt.plot(aers)
-plt.savefig("train_aers.png")
+plt.savefig("train_aers_ibm2.png")
 plt.close()
 

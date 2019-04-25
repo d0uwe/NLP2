@@ -43,20 +43,20 @@ class IBM1:
                 fr_words.add(f) 
 
         self.en_words, self.fr_words = en_words, fr_words
-        self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
+        self.t = defaultdict(lambda: defaultdict(lambda: 1/len(fr_words)))
 
     def logprob_sentence(self, e, f):
         e = ["NULL"] + e.split()
         f = f.split()
         m = len(f)
-        l = len(e)
+        l = len(e) - 1
         pa = 1 / (1 + l)
-        log_pfe = sum([np.log(pa * sum([self.t[f[j]][e[a]] for a in range(l)])) for j in range(m)])
+        log_pfe = sum([np.log(pa * sum([self.t[e[a]][f[j]] for a in range(l)])) for j in range(m)])
         return log_pfe
 
 
     def logprob(self):
-        logprob = 0
+        logprob = 0.
         for e,f in zip(self.e, self.f):
             log_pfe = self.logprob_sentence(e,f)
             logprob += log_pfe
@@ -98,14 +98,18 @@ class IBM1:
                 e_sen = ["NULL"] + e_sen.split()
                 f_sen = f_sen.split()
 
-                ef = product(e_sen, f_sen)
-                for e, f in ef:
-                    s_total[e] += self.t[f][e]
+                # ef = product(e_sen, f_sen)
+                for e in e_sen:
+                    s_total[e] = 0.
+                    for f in f_sen:
+                        s_total[e] += self.t[e][f]
+                # for e, f in ef:
+                #     s_total[e] += self.t[e][f]
                 
                 ef = product(e_sen, f_sen)
                 for e, f in ef:
-                    counts[f][e] += self.t[f][e] / s_total[e]
-                    total[f] += self.t[f][e] / s_total[e]
+                    counts[e][f] += (self.t[e][f] / s_total[e])
+                    total[f] += (self.t[e][f] / s_total[e])
 
             
             print("M-step")
@@ -115,7 +119,7 @@ class IBM1:
                 ef = product(e_sen, f_sen)
 
                 for e, f in ef:
-                    self.t[f][e] = counts[f][e] / total[f]
+                    self.t[e][f] = counts[e][f] / total[f]
 
             print("Evaluation")
             aers.append(self.evaluate_aer())
@@ -137,7 +141,7 @@ class IBM1:
         matrix = np.zeros((len(e_sen), len(f_sen)))
         for i, e_word in enumerate(e_sen):
             for j, f_word in enumerate(f_sen):
-                matrix[i][j] = self.t[f_word][e_word]
+                matrix[i][j] = self.t[e_word][f_word]
 
         alignment=[]
         num_cols = len(f_sen)
@@ -173,7 +177,7 @@ if load_model:
     aers = dill.load(open("aers_ibm1.p", 'rb'))
 else:
     ibm1 = IBM1(e, f)
-    logprobs, aers = ibm1.EM(5)
+    logprobs, aers = ibm1.EM(10)
     dill.dump(ibm1, open("ibm1.p", 'wb'))
     dill.dump(logprobs, open("logprobs_ibm1.p", 'wb'))
     dill.dump(aers, open("aers_ibm1.p", 'wb'))
