@@ -1,5 +1,5 @@
 '''
-IBM model 1 
+IBM model 2 
 Tim Smit, Tessa Wagenaar and Douwe van der Wal
 '''
 
@@ -20,7 +20,7 @@ def read_data(filename):
 
     return e
 
-class IBM1: 
+class IBM2: 
     def __init__(self, e_lines, f_lines):
         self.t = {}
         self._vocab = {}
@@ -45,6 +45,9 @@ class IBM1:
         self.en_words, self.fr_words = en_words, fr_words
         self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
+    def jump(self, aj, j, l, m):
+        return aj - floor(j * (l/m))
+
     def logprob_sentence(self, e, f):
         e = ["NULL"] + e.split()
         f = f.split()
@@ -61,6 +64,7 @@ class IBM1:
             log_pfe = self.logprob_sentence(e,f)
             logprob += log_pfe
         return logprob
+
 
     def evaluate_aer(self):
         path = 'data/validation/dev.wa.nonullalign'
@@ -134,10 +138,12 @@ class IBM1:
         '''
         e_sen = ["NULL"] + e_sen.split()
         f_sen = f_sen.split()
+        l = len(e_sen)
+        m = len(f_sen)
         matrix = np.zeros((len(e_sen), len(f_sen)))
         for i, e_word in enumerate(e_sen):
             for j, f_word in enumerate(f_sen):
-                matrix[i][j] = self.t[f_word][e_word]
+                matrix[i][j] = self.A[self.jump(i,j,l,m)] * self.t[f_word][e_word]
 
         alignment=[]
         num_cols = len(f_sen)
