@@ -17,7 +17,6 @@ from aer import read_naacl_alignments, AERSufficientStatistics
 def read_data(filename):
     with open(filename, 'r') as f:
         e = f.readlines()
-
     return e
 
 class IBM2: 
@@ -31,6 +30,7 @@ class IBM2:
         self.e = e_lines
         self.f = f_lines
         self._init_t()
+
 
     def _init_t(self):
         en_words = set()
@@ -46,6 +46,7 @@ class IBM2:
         self.en_words, self.fr_words = en_words, fr_words
         self.t = defaultdict(lambda: defaultdict(lambda: 1/len(en_words)))
 
+
     def random_init(self):
         for e_sen, f_sen in zip(self.e, self.f):
             e_sen = ["NULL"] + e_sen.split()
@@ -55,8 +56,13 @@ class IBM2:
                 self.t[e][f] = random()
 
 
+    def ibm1_init(self, ibm1):
+        self.t = ibm1.t
+
+
     def jump(self, aj, j, l, m):
         return aj - np.floor(j * (l/m))
+
 
     def logprob_sentence(self, e, f):
         e = ["NULL"] + e.split()
@@ -96,7 +102,6 @@ class IBM2:
         return metric.aer()
 
 
-
     def EM(self, iterations):
         logprobs = []
         aers = []
@@ -116,8 +121,6 @@ class IBM2:
                 ef = product(e_sen, f_sen)
                 pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
 
-                # for (e, f), (i, j) in zip(ef, pos):
-                #     if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
                 for i, e in enumerate(e_sen):
                     s_total[e] = 0.
                     for j, f in enumerate(f_sen):
@@ -126,7 +129,6 @@ class IBM2:
                 ef = product(e_sen, f_sen)
                 pos = product(np.arange(len(e_sen)), np.arange(len(f_sen)))
                 for (e, f), (i, j) in zip(ef, pos):
-                    # if int(self.jump(i, j, len(e_sen), len(f_sen))) in self._alignment_cpd.keys():
                     prob = (self.t[f][e] * self._alignment_cpd[self.jump(i, j, len(e_sen), len(f_sen))]) / s_total[e]
                     counts[f][e] += prob
                     total[f] += prob
@@ -154,6 +156,7 @@ class IBM2:
             logprobs.append(self.logprob())
 
         return logprobs, aers
+
 
     def viterbi(self, e_sen, f_sen):
         '''
@@ -188,36 +191,38 @@ class IBM2:
 
 
 # Change to true if model should be loaded from pickle
-load_model = False
+# load_model = False
 
-e = read_data("data/training/hansards.36.2.e")#[:1000]
-f = read_data("data/training/hansards.36.2.f")#[:1000]
-ef = list(set(zip(e,f)))
-e, f = zip(*ef)
-lens = [len(eb.split()) for eb in e]
+# e = read_data("data/training/hansards.36.2.e")#[:1000]
+# f = read_data("data/training/hansards.36.2.f")#[:1000]
+# ef = list(set(zip(e,f)))
+# e, f = zip(*ef)
+# lens = [len(eb.split()) for eb in e]
 
-if load_model:
-    ibm2 = dill.load(open("ibm2.p", 'rb'))
-    logprobs = dill.load(open("logprobs_ibm2.p", 'rb'))
-    aers = dill.load(open("aers_ibm2.p", 'rb'))
-else:
-    ibm2 = IBM2(e, f, max(lens))
-    # ibm2.random_init()
-    logprobs, aers = ibm2.EM(10)
-    dill.dump(ibm2, open("ibm2.p", 'wb'))
-    dill.dump(logprobs, open("logprobs_ibm2.p", 'wb'))
-    dill.dump(aers, open("aers_ibm2.p", 'wb'))
+# if load_model:
+#     ibm2 = dill.load(open("ibm2.p", 'rb'))
+#     logprobs = dill.load(open("logprobs_ibm2.p", 'rb'))
+#     aers = dill.load(open("aers_ibm2.p", 'rb'))
+# else:
+#     ibm2 = IBM2(e, f, max(lens))
+#     # ibm2.random_init()
+#     ibm1 = dill.load(open("ibm1.p",'rb'))
+#     ibm2.ibm1_init((ibm1))
+#     logprobs, aers = ibm2.EM(5)
+#     dill.dump(ibm2, open("ibm2_expansion.p", 'wb'))
+#     dill.dump(logprobs, open("logprobs_ibm2_expansion.p", 'wb'))
+#     dill.dump(aers, open("aers_ibm2_expansion.p", 'wb'))
 
-ibm2.viterbi(e[1], f[1])
+# ibm2.viterbi(e[1], f[1])
 
 
-plt.figure()
-plt.plot(logprobs)
-plt.savefig("train_logprobs_ibm2.png")
-plt.close()
+# plt.figure()
+# plt.plot(logprobs)
+# plt.savefig("train_logprobs_ibm2_expansion.png")
+# plt.close()
 
-plt.figure()
-plt.plot(aers)
-plt.savefig("train_aers_ibm2.png")
-plt.close()
+# plt.figure()
+# plt.plot(aers)
+# plt.savefig("train_aers_ibm2_expansion.png")
+# plt.close()
 

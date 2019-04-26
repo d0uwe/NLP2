@@ -62,12 +62,12 @@ class IBM1:
             logprob += log_pfe
         return logprob
 
-    def evaluate_aer(self):
-        path = 'data/validation/dev.wa.nonullalign'
+    def evaluate_aer(self, pathname = 'data/validation/'):
+        path = pathname + 'dev.wa.nonullalign'
         gold_sets = read_naacl_alignments(path)
 
-        val_e = read_data('data/validation/dev.e')
-        val_f = read_data('data/validation/dev.f')
+        val_e = read_data(pathname + 'dev.e')
+        val_f = read_data(pathname + 'dev.f')
 
         # print(gold_sets)
         predictions = []
@@ -79,7 +79,7 @@ class IBM1:
         for gold, pred in zip(gold_sets, predictions):
             metric.update(sure=gold[0], probable=gold[1], predicted=pred)
 
-        return metric.aer()
+        return metric.aer(), predictions
 
 
 
@@ -164,34 +164,34 @@ class IBM1:
 
 
 # Change to true if model should be loaded from pickle
-load_model = False
+# load_model = False
 
-e = read_data("data/training/hansards.36.2.e")#[:1000]
-f = read_data("data/training/hansards.36.2.f")#[:1000]
-ef = list(set(zip(e,f)))
-e, f = zip(*ef)
+# e = read_data("data/training/hansards.36.2.e")#[:1000]
+# f = read_data("data/training/hansards.36.2.f")#[:1000]
+# ef = list(set(zip(e,f)))
+# e, f = zip(*ef)
 
-if load_model:
-    ibm1 = dill.load(open("ibm1.p", 'rb'))
-    logprobs = dill.load(open("logprobs_ibm1.p", 'rb'))
-    aers = dill.load(open("aers_ibm1.p", 'rb'))
-else:
-    ibm1 = IBM1(e, f)
-    logprobs, aers = ibm1.EM(10)
-    dill.dump(ibm1, open("ibm1.p", 'wb'))
-    dill.dump(logprobs, open("logprobs_ibm1.p", 'wb'))
-    dill.dump(aers, open("aers_ibm1.p", 'wb'))
+# if load_model:
+#     ibm1 = dill.load(open("ibm1.p", 'rb'))
+#     logprobs = dill.load(open("logprobs_ibm1.p", 'rb'))
+#     aers = dill.load(open("aers_ibm1.p", 'rb'))
+# else:
+#     ibm1 = IBM1(e, f)
+#     logprobs, aers = ibm1.EM(10)
+#     dill.dump(ibm1, open("ibm1.p", 'wb'))
+#     dill.dump(logprobs, open("logprobs_ibm1.p", 'wb'))
+#     dill.dump(aers, open("aers_ibm1.p", 'wb'))
 
-ibm1.viterbi(e[1], f[1])
+# ibm1.viterbi(e[1], f[1])
 
 
-plt.figure()
-plt.plot(logprobs)
-plt.savefig("train_logprobs.png")
-plt.close()
+# plt.figure()
+# plt.plot(logprobs)
+# plt.savefig("train_logprobs.png")
+# plt.close()
 
-plt.figure()
-plt.plot(aers)
-plt.savefig("train_aers.png")
-plt.close()
+# plt.figure()
+# plt.plot(aers)
+# plt.savefig("train_aers.png")
+# plt.close()
 
