@@ -3,7 +3,7 @@ from random import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy as np
+
 
 DATATYPEDICT = {
 "TRAIN_DATA" : "Data/02-21.10way.clean",
@@ -44,17 +44,26 @@ class LoadData():
                         sentence.append(item.replace(")","").replace("\n","").lower())
                 data.append(sentence)
         return data
+    
 
     def next_batch(self, batch_size):
         if batch_size + self.batch_location > self.data_size:
             self.batch_location = 0
         batch_data = self.data[self.batch_location:batch_size + self.batch_location]
+        batch_data = self.to_semi_tensor(batch_data)
         self.batch_location = batch_size + self.batch_location
         return batch_data
+    
+    def to_tensor(self, batch_data):
+        return [self.get_id(item) for sentence in batch_data for item in sentence]
 
     def create_word_id(self):
-        all_data = self.next_batch(self.data_size)
+        all_data = self.data
         all_data = [item for sentence in all_data for item in sentence]
+        all_data.append("BOS")
+        all_data.append("EOS")
+        all_data.append("UNK")
+        all_data.append("PAD")
         all_data = sorted(list(set(all_data)))
         self.vocab_size = len(all_data)
         self._word_to_id = { wo:i for i,wo in enumerate(all_data) }
@@ -72,8 +81,8 @@ class LoadData():
 
     
 
-# data = LoadData("TRAIN_DATA")
-# for i in range(0,4):
-#     print("omg")
-#     print(data.next_batch(4))
+data = LoadData("TRAIN_DATA")
+for i in range(0,4):
+    print("omg")
+    print(data.next_batch(4))
 
