@@ -54,8 +54,10 @@ class LoadData():
         self.batch_location = batch_size + self.batch_location
         return batch_data
     
-    def to_tensor(self, batch_data):
-        return [self.get_id(item) for sentence in batch_data for item in sentence]
+    def to_semi_tensor(self, batch_data):
+        batch_data = [[self.get_id(item)for item in sentence] for sentence in batch_data]
+        maxi = max([len(sentence) for sentence in batch_data])
+        return np.array([sentence + [self.get_id("PAD") for i in range(maxi- len(sentence))] for sentence in batch_data])
 
     def create_word_id(self):
         all_data = self.data
@@ -81,8 +83,8 @@ class LoadData():
 
     
 
-data = LoadData("TRAIN_DATA")
-for i in range(0,4):
-    print("omg")
-    print(data.next_batch(4))
+# data = LoadData("TRAIN_DATA")
+# for i in range(0,4):
+#     print("omg")
+#     print(data.next_batch(4))
 
