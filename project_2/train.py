@@ -12,10 +12,12 @@ from random import randint
 
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from load_data import LoadData
+from RNNLM import RNNLanguageModel
+# from torch.utils.data import DataLoader
 
-from dataset import TextDataset
-from model import TextGenerationModel
+# from dataset import TextDataset
+# from model import TextGenerationModel
 
 def acc(predictions, targets):
     """
@@ -38,23 +40,25 @@ def train(config):
 
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cpu')
 
     # Initialize the dataset and data loader (note the +1)
-    dataset = 
+    dataset = LoadData("TRAIN_DATA")
 
-    padding_idx = dataset.create_word_id("-PAD-")
+    padding_idx = dataset.get_id("PAD")
     vocab_len = dataset.vocab_len
     vocab_dim = config.input_dim
     # Initialize the model that we are going to use
-    model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device):
+    model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
 
     # Setup the loss and optimizer
-    criterion = torch.nn.CrossEntropyLoss()  # fixme
+    criterion = torch.nn.CrossEntropyLoss(ignore_index=padding_idx)  # fixme
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
     softmax = torch.nn.Softmax()
 
     # Loop over data!!! TODO
+    for step in range(config.train_steps):
     # for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -64,8 +68,9 @@ def train(config):
         optimizer.zero_grad()
 
         # Create x and y!! TODO
-        x = 
-        y = 
+        sen = dataset.next_batch(config.batch_size)
+        x = torch.tensor(sen[:-1]).to(device)
+        y = torch.tensor(sen[1:]).to(device)
 
         out = model(x)
 
@@ -93,27 +98,27 @@ def train(config):
                     accuracy, loss
             ))
 
-        if step % config.sample_every == 0:
-            # Generate some sentences by sampling from the model
-            # TODO: FIX THIS
-            model.eval()
-            h = None
-            sentence = []
-            ind = torch.randint(0, dataset.vocab_size - 1, (1,), dtype=torch.long)
-            ind = ind[0].to(device)
-            c = one_hot_sample(ind[0], dataset.vocab_size).to(device)
-            for i in range(config.sample_length - 1):
-                sentence.append(ind)
-                c, h = model.generate(c, h)
-                # ind = c.argmax()
-                ind = softmax(1/T * c.squeeze()).multinomial(1)
-                c = one_hot_sample(ind, dataset.vocab_size).to(device)
+        # if step % config.sample_every == 0:
+        #     # Generate some sentences by sampling from the model
+        #     # TODO: FIX THIS
+        #     model.eval()
+        #     h = None
+        #     sentence = []
+        #     ind = torch.randint(0, dataset.vocab_size - 1, (1,), dtype=torch.long)
+        #     ind = ind[0].to(device)
+        #     c = one_hot_sample(ind[0], dataset.vocab_size).to(device)
+        #     for i in range(config.sample_length - 1):
+        #         sentence.append(ind)
+        #         c, h = model.generate(c, h)
+        #         # ind = c.argmax()
+        #         ind = softmax(1/T * c.squeeze()).multinomial(1)
+        #         c = one_hot_sample(ind, dataset.vocab_size).to(device)
 
-            sentence.append(ind)
-            sentence = torch.tensor(sentence)
-            s = dataset.convert_to_string(sentence.tolist())
-            print(s)
-            results["sentences"].append(s)
+        #     sentence.append(ind)
+        #     sentence = torch.tensor(sentence)
+        #     s = dataset.convert_to_string(sentence.tolist())
+        #     print(s)
+        #     results["sentences"].append(s)
 
         if step == config.train_steps:
             # If you receive a PyTorch data-loader error, check this bug report:
@@ -142,7 +147,7 @@ if __name__ == "__main__":
     # Model params
     # parser.add_argument('--txt_file', type=str, required=True, help="Path to a .txt file to train on")
     parser.add_argument('--input_dim', type=int, default=100, help='Length of an input embedding')
-    parser.add_argument('--lstm_num_hidden', type=int, default=128, help='Number of hidden units in the LSTM')
+    parser.add_argument('--hidden_dim', type=int, default=128, help='Number of hidden units in the LSTM')
     parser.add_argument('--lstm_num_layers', type=int, default=2, help='Number of LSTM layers in the model')
 
     # Training params

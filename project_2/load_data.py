@@ -42,7 +42,7 @@ class LoadData():
                 for item in line.split(" "):
                     if item[0] != "(":
                         sentence.append(item.replace(")","").replace("\n","").lower())
-                data.append(sentence)
+                data.append(["BOS"] + sentence + ["EOS"])
         return data
     
 
@@ -55,15 +55,15 @@ class LoadData():
         return batch_data
     
     def to_semi_tensor(self, batch_data):
-        batch_data = [[self.get_id(item)for item in sentence] for sentence in batch_data]
+        batch_data = [[self.get_id(item) for item in sentence] for sentence in batch_data]
         maxi = max([len(sentence) for sentence in batch_data])
         return np.array([sentence + [self.get_id("PAD") for i in range(maxi- len(sentence))] for sentence in batch_data])
 
     def create_word_id(self):
         all_data = self.data
         all_data = [item for sentence in all_data for item in sentence]
-        all_data.append("BOS")
-        all_data.append("EOS")
+        # all_data.append("BOS")
+        # all_data.append("EOS")
         all_data.append("UNK")
         all_data.append("PAD")
         all_data = sorted(list(set(all_data)))
@@ -77,13 +77,19 @@ class LoadData():
     def get_word(self, id):
         return self._id_to_word[id]
 
+    @property
+    def vocab_len(self):
+        return self.vocab_size
 
+
+    
 
 
 
     
 
 # data = LoadData("TRAIN_DATA")
+# print(data.get_id("BOS"), data.get_id("EOS"))
 # for i in range(0,4):
 #     print("omg")
 #     print(data.next_batch(4))
