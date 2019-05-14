@@ -81,6 +81,17 @@ class LoadData():
     def vocab_len(self):
         return self.vocab_size
 
+    def convert_to_string(self, numberlist):
+        """
+    `   Converts the number list to a sentence
+        
+        Args:
+        numberlist = list of word indices to a Sentence.
+        """
+        sentence = []
+        for id in numberlist:
+            sentence.append(self.get_word(id))
+        return sentence.join(" ")
 
     
 
