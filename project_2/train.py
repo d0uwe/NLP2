@@ -98,27 +98,24 @@ def train(config):
                     accuracy, loss
             ))
 
-        # if step % config.sample_every == 0:
-        #     # Generate some sentences by sampling from the model
-        #     # TODO: FIX THIS
-        #     model.eval()
-        #     h = None
-        #     sentence = []
-        #     ind = torch.randint(0, dataset.vocab_size - 1, (1,), dtype=torch.long)
-        #     ind = ind[0].to(device)
-        #     c = one_hot_sample(ind[0], dataset.vocab_size).to(device)
-        #     for i in range(config.sample_length - 1):
-        #         sentence.append(ind)
-        #         c, h = model.generate(c, h)
-        #         # ind = c.argmax()
-        #         ind = softmax(1/T * c.squeeze()).multinomial(1)
-        #         c = one_hot_sample(ind, dataset.vocab_size).to(device)
+        if step % config.sample_every == 0:
+            # Generate some sentences by sampling from the model
+            model.eval()
+            h = None
+            sentence = []
+            c = torch.randint(0, vocab_len - 1, (1,), dtype=torch.long)
+            for i in range(config.sample_length - 1):
+                sentence.append(ind)
+                out, h = model.generate(c, h)
+                # ind = c.argmax()
+                c = softmax(1/T * out.squeeze()).multinomial(1)
+                # c = one_hot_sample(ind, dataset.vocab_size).to(device)
 
-        #     sentence.append(ind)
-        #     sentence = torch.tensor(sentence)
-        #     s = dataset.convert_to_string(sentence.tolist())
-        #     print(s)
-        #     results["sentences"].append(s)
+            sentence.append(c)
+            sentence = torch.tensor(sentence)
+            s = dataset.convert_to_string(sentence.tolist())
+            print(s)
+            results["sentences"].append(s)
 
         if step == config.train_steps:
             # If you receive a PyTorch data-loader error, check this bug report:
@@ -169,7 +166,7 @@ if __name__ == "__main__":
 
     # Added arguments
     parser.add_argument('--temperature', type=float, default=1.0, help='What temperature to use in the sentence sampling')
-    parser.add_argument('--sample_length', type=int, default=30, help='Length of the sampled sentences')
+    parser.add_argument('--sample_length', type=int, default=50, help='Length of the sampled sentences')
 
     config = parser.parse_args()
 

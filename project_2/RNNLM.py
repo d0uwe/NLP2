@@ -25,4 +25,11 @@ class RNNLanguageModel(nn.Module):
 		return out
 
 	def predict(self, x, h=None):
-		return x
+		x = self.embedding(x)
+		if h:
+			x, h = self.lstm(x,h)
+		else: 
+			x, h = self.lstm(x)
+		out = self.linear(x)
+
+		return out, h
