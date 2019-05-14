@@ -58,7 +58,7 @@ def train(config):
     softmax = torch.nn.Softmax()
 
     # Loop over data!!! TODO
-    for step in range(config.train_steps):
+    for step in range(int(config.train_steps)):
     # for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -109,15 +109,16 @@ def train(config):
             c = c.to(device)
             print(c.shape, c)
             for i in range(config.sample_length - 1):
-                sentence.append(c)
+                sentence.append(c.squeeze())
                 out, h = model.predict(c, h)
                 c = torch.tensor([[out.argmax()]])
                 print(c.shape, c)
                 # c = softmax(1/T * out.squeeze()).multinomial(1)
                 # c = one_hot_sample(ind, dataset.vocab_size).to(device)
 
-            sentence.append(c)
+            sentence.append(c.squeeze())
             sentence = torch.tensor(sentence)
+            print(sentence, sentence.tolist())
             s = dataset.convert_to_string(sentence.tolist())
             print(s)
             results["sentences"].append(s)
