@@ -72,6 +72,8 @@ def train(config):
         x = torch.tensor(sen[:-1]).to(device)
         y = torch.tensor(sen[1:]).to(device)
 
+        print(x.shape, x)
+
         out = model(x)
 
         out = out.view(-1, out.shape[2])
@@ -103,12 +105,15 @@ def train(config):
             model.eval()
             h = None
             sentence = []
-            c = torch.randint(0, vocab_len - 1, (1,), dtype=torch.long)
+            c = torch.randint(0, vocab_len - 1, (1,1), dtype=torch.long).to(device)
+            c = c.to(device)
+            print(c.shape, c)
             for i in range(config.sample_length - 1):
-                sentence.append(ind)
-                out, h = model.generate(c, h)
-                # ind = c.argmax()
-                c = softmax(1/T * out.squeeze()).multinomial(1)
+                sentence.append(c)
+                out, h = model.predict(c, h)
+                c = torch.tensor([[out.argmax()]])
+                print(c.shape, c)
+                # c = softmax(1/T * out.squeeze()).multinomial(1)
                 # c = one_hot_sample(ind, dataset.vocab_size).to(device)
 
             sentence.append(c)
