@@ -62,8 +62,6 @@ class LoadData():
     def create_word_id(self):
         all_data = self.data
         all_data = [item for sentence in all_data for item in sentence]
-        # all_data.append("BOS")
-        # all_data.append("EOS")
         all_data.append("UNK")
         all_data.append("PAD")
         all_data = sorted(list(set(all_data)))
@@ -83,7 +81,7 @@ class LoadData():
 
     def convert_to_string(self, numberlist):
         """
-    `   Converts the number list to a sentence
+    `   Converts the number list to a sentence.
         
         Args:
         numberlist = list of word indices to a Sentence.
@@ -91,17 +89,6 @@ class LoadData():
         sentence = []
         for id in numberlist:
             sentence.append(self.get_word(id))
-        return sentence.join(" ")
+        return " ".join(sentence)
 
-    
-
-
-
-    
-
-# data = LoadData("TRAIN_DATA")
-# print(data.get_id("BOS"), data.get_id("EOS"))
-# for i in range(0,4):
-#     print("omg")
-#     print(data.next_batch(4))
 
