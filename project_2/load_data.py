@@ -70,7 +70,7 @@ class LoadData():
         self._id_to_word = { i:wo for i,wo in enumerate(all_data) }
 
     def get_id(self, word):
-        return self._word_to_id[word]
+        return self._word_to_id.get(word, self._word_to_id["UNK"])
 
     def get_word(self, id):
         return self._id_to_word[id]

@@ -72,8 +72,8 @@ def train(config):
 
         # Create x and y!! TODO
         sen = dataset.next_batch(config.batch_size)
-        x = torch.tensor(sen[:-1]).to(device)
-        y = torch.tensor(sen[1:]).to(device)
+        x = torch.tensor(sen[:,:-1]).to(device)
+        y = torch.tensor(sen[:,1:]).to(device)
 
         out = model(x)
 

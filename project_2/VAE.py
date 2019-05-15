@@ -4,12 +4,17 @@ from __future__ import print_function
 
 import torch.nn as nn
 import torch
+from torch.distribution.normal import Normal
 
 
 class SentenceVAE(nn.Module):
-	def __init__(self, vocab_len, vocab_dim, hidden_dim, num_layers, padding_idx, device="cpu"):
-		super(RNNLanguageModel, self).__init__()
-		self.h0 = torch.zeros(hidden_dim)
+	def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, num_layers, padding_idx, device="cpu"):
+		super(SentenceVAE, self).__init__()
+		self.tanh = nn.Tanh()
+		self.linear_h = nn.Linear(z_dim, hidden_dim)
+		self.z_dim = z_dim
+		self.normal = Normal(torch.zeros(z_dim), torch.eye(z_dim))
+
 		self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
 		self.lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers)
 		self.linear = nn.Linear(hidden_dim, vocab_len)
@@ -18,9 +23,11 @@ class SentenceVAE(nn.Module):
 		self.to(device)
 
 	def forward(self, x):
-		h = self.h0 
-		x = self.embedding(x)
-		out,h = self.lstm(x)
+		z = self.normal.sample()
+		h = self.tanh(self.linear_h(z))
+		e = self.embedding(x)
+		f = 
+		out,h = self.lstm(x,h)
 		out = self.linear(out)
 		return out
 
@@ -33,3 +40,6 @@ class SentenceVAE(nn.Module):
 		out = self.linear(x)
 
 		return out, h
+
+
+
