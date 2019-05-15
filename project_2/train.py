@@ -45,7 +45,6 @@ def train(config):
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cpu')
 
     # Initialize the dataset and data loader (note the +1)
     dataset = LoadData("TRAIN_DATA")
@@ -111,9 +110,9 @@ def train(config):
             c = torch.randint(0, vocab_len - 1, (1,1), dtype=torch.long).to(device)
             c = c.to(device)
             for i in range(config.sample_length - 1):
-                sentence.append(c.squeeze())
+                sentence.append(c.squeeze().cpu())
                 out, h = model.predict(c, h)
-                c = torch.tensor([[out.argmax()]])
+                c = torch.tensor([[out.argmax()]]).to(device)
 
             sentence.append(c.squeeze())
             sentence = torch.tensor(sentence)
