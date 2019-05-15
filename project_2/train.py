@@ -32,11 +32,15 @@ def acc(predictions, targets):
     return accuracy
 
 
+def perplexity(predictions, targets):
+    return 1
+
+
 def train(config):
 
     T = config.temperature
 
-    results = {"acc": [], "loss": [], "sentences": []}
+    results = {"acc": [], "loss": [], "sentences": [], "ppl": []}
 
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
@@ -79,6 +83,7 @@ def train(config):
         loss = criterion(out, y.view(-1))   # fixme
         loss.backward()
         accuracy = acc(out, y.view(-1))   # fixme
+        ppl = perplexity(out, y.view(-1))
 
         results["acc"].append(accuracy.item())
         results["loss"].append(loss.item())
