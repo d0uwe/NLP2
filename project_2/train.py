@@ -32,16 +32,19 @@ def acc(predictions, targets):
     return accuracy
 
 
+def perplexity(predictions, targets):
+    return 1
+
+
 def train(config):
 
     T = config.temperature
 
-    results = {"acc": [], "loss": [], "sentences": []}
+    results = {"acc": [], "loss": [], "sentences": [], "ppl": []}
 
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
-    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    device = torch.device('cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Initialize the dataset and data loader (note the +1)
     dataset = LoadData("TRAIN_DATA")
@@ -69,10 +72,8 @@ def train(config):
 
         # Create x and y!! TODO
         sen = dataset.next_batch(config.batch_size)
-        x = torch.tensor(sen[:-1]).to(device)
-        y = torch.tensor(sen[1:]).to(device)
-
-        print(x.shape, x)
+        x = torch.tensor(sen[:,:-1]).to(device)
+        y = torch.tensor(sen[:,1:]).to(device)
 
         out = model(x)
 
@@ -81,6 +82,7 @@ def train(config):
         loss = criterion(out, y.view(-1))   # fixme
         loss.backward()
         accuracy = acc(out, y.view(-1))   # fixme
+        ppl = perplexity(out, y.view(-1))
 
         results["acc"].append(accuracy.item())
         results["loss"].append(loss.item())
@@ -107,18 +109,13 @@ def train(config):
             sentence = []
             c = torch.randint(0, vocab_len - 1, (1,1), dtype=torch.long).to(device)
             c = c.to(device)
-            print(c.shape, c)
             for i in range(config.sample_length - 1):
-                sentence.append(c.squeeze())
+                sentence.append(c.squeeze().cpu())
                 out, h = model.predict(c, h)
-                c = torch.tensor([[out.argmax()]])
-                print(c.shape, c)
-                # c = softmax(1/T * out.squeeze()).multinomial(1)
-                # c = one_hot_sample(ind, dataset.vocab_size).to(device)
+                c = torch.tensor([[out.argmax()]]).to(device)
 
             sentence.append(c.squeeze())
             sentence = torch.tensor(sentence)
-            print(sentence, sentence.tolist())
             s = dataset.convert_to_string(sentence.tolist())
             print(s)
             results["sentences"].append(s)
