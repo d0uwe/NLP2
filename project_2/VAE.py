@@ -129,6 +129,8 @@ def main():
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
+    results = {"elbo": []}
+
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
         t1 = time.time()
@@ -145,7 +147,16 @@ def main():
         loss.backward()
         optimizer.step()
 
+        results["elbo"].append(loss.item())
 
+    torch.save(model, open("SentenceVAE.pt", 'wb'))
+    plt.figure(figsize=(12, 6))
+    plt.plot(results["ELBO"], label='ELBO')
+    plt.legend()
+    plt.xlabel('iterations')
+    plt.ylabel('ELBO')
+    plt.tight_layout()
+    plt.savefig("SentenceVAE_ELBO.png")    
 
 
 
