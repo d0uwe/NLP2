@@ -16,6 +16,7 @@ import torch.optim as optim
 import torch.nn as nn
 from load_data import LoadData
 from RNNLM import RNNLanguageModel
+import pickle
 # from torch.utils.data import DataLoader
 
 # from dataset import TextDataset
@@ -47,7 +48,7 @@ def train(config):
 
     T = config.temperature
 
-    results = {"acc": [], "loss": [], "sentences": [], "ppl": []}
+    results = {"acc": [], "loss": [], "sentences": []}
 
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
@@ -63,7 +64,6 @@ def train(config):
     model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
 
     # Setup the loss and optimizer
-    criterion = torch.nn.CrossEntropyLoss(ignore_index=padding_idx)  # fixme
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
     softmax = torch.nn.Softmax()
 
@@ -87,12 +87,10 @@ def train(config):
 
         out = out.view(-1, out.shape[2])
 
-        loss = criterion(out, y.view(-1))  
+        loss = perplexity(out, y.view(-1))
         loss.backward()
         accuracy = acc(out, y.view(-1)) 
-        ppl = perplexity(out, y.view(-1))
 
-        results["ppl"].append(ppl.item())
         results["acc"].append(accuracy.item())
         results["loss"].append(loss.item())
 
@@ -135,6 +133,9 @@ def train(config):
             break
 
     print('Done training.')
+
+    pickle.dump(results, open("results_RNN.p", 'wb'))
+
     torch.save(model, open("LSTM.pt", 'wb'))
 
     print("Printing sentences:")
