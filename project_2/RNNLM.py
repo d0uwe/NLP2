@@ -5,7 +5,6 @@ from __future__ import print_function
 import torch.nn as nn
 import torch
 
-
 class RNNLanguageModel(nn.Module):
 	def __init__(self, vocab_len, vocab_dim, hidden_dim, num_layers, padding_idx, device="cpu"):
 		super(RNNLanguageModel, self).__init__()
