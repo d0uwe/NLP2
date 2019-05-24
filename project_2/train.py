@@ -62,7 +62,7 @@ def train(config):
     model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
 
     # Setup the loss and optimizer
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=padding_idx)
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
     softmax = torch.nn.Softmax()
 
