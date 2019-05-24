@@ -13,7 +13,8 @@ from torch.distributions.normal import Normal
 from load_data import LoadData
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 class Encoder(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
@@ -23,8 +24,8 @@ class Encoder(nn.Module):
         self.z_dim = z_dim
         self.normal = Normal(torch.zeros(z_dim), torch.eye(z_dim))
         self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
-        self.forward_lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers)
-        self.backward_lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers)
+        self.forward_lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
+        self.backward_lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
         self.linear_h = nn.Linear(2*hidden_dim, hidden_dim)
         self.linear_mean = nn.Linear(hidden_dim, z_dim)
         self.linear_std = nn.Linear(hidden_dim, z_dim)
@@ -49,29 +50,67 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
+        super(Decoder, self).__init__()
         self.linear_h = nn.Linear(z_dim, hidden_dim)
         self.tanh = nn.Tanh()
         self.embedding = nn.Embedding(vocab_len, vocab_dim)
+        self.lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
+        self.linear_out = nn.Linear(hidden_dim, vocab_len)
+        self.vocab_dim = vocab_dim
+        self.hidden_dim = hidden_dim
 
     def forward(self, z, x):
-        h = self.tanh(self.linear_h(z))
+        h = self.tanh(self.linear_h(z)).reshape(1, -1, self.hidden_dim)
+        c = torch.zeros_like(h)
         e = self.embedding(x)
-        return x
+        sentence = []
+        for i in range(e.shape[1]):
+            emb = e[:,i:i+1,:].reshape(e.shape[0], 1, self.vocab_dim)
+            out, (h,c) = self.lstm(emb, (h, c))
+            sentence.append(out)
+        out = torch.cat(sentence, 1)
+        sen = self.linear_out(out)
+        return sen
 
 
 
 class SentenceVAE(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
         super(SentenceVAE, self).__init__()
+        self.z_dim = z_dim
         self.encoder = Encoder(vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=num_layers)
         self.decoder = Decoder(vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=num_layers)
+        criterion = nn.CrossEntropyLoss()
 
     def forward(self, x):
-        mean, logvar = self.encoder(x)
-        return mean
+        mu, sigma = self.encoder(x)
+        epsilon = torch.randn(self.z_dim).to(device)
+        z = mu + sigma * epsilon
+        sentence = self.decoder(z, x)
+
+        kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum()
+        recon_loss = nn.functional.cross_entropy(immean, x, reduction='sum')
+
+        return (kl_loss + recon_loss) / x.shape[0]
+
         
-    def predict(self, x, h=None):
-        return x
+    def sample(self, n_samples):
+        """
+        Sample n_samples from the model. Return both the sampled images
+        (from bernoulli) and the means for these bernoullis (as these are
+        used to plot the data manifold).
+        """
+        sampled_sens = []
+
+        for _ in range(n_samples):
+            z = torch.normal(torch.zeros(self.z_dim), torch.ones(self.z_dim)).to(device)
+            sentence = self.decoder(z)
+            # CREATE SENTENCE
+            sampled_sens.append(sentence)
+ 
+        # rt = np.sqrt(n_samples)
+        # sampled_ims = torch.stack(sampled_ims, 0).reshape(rt, rt, 1, 28, 28)
+        return sampled_ims, im_means
 
 
 
@@ -88,6 +127,7 @@ def main():
     model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
+    criterion = nn.CrossEntropyLoss()
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
@@ -101,7 +141,9 @@ def main():
         x = torch.tensor(sen).to(device)
         # y = torch.tensor(sen[:,1:]).to(device)
 
-        model(x)
+        loss = model(x)
+        loss.backward()
+        optimizer.step()
 
 
 
