@@ -9,9 +9,11 @@ import argparse
 
 import numpy as np
 from random import randint
+from pdb import set_trace
 
 import torch
 import torch.optim as optim
+import torch.nn as nn
 from load_data import LoadData
 from RNNLM import RNNLanguageModel
 # from torch.utils.data import DataLoader
@@ -33,8 +35,13 @@ def acc(predictions, targets):
 
 
 def perplexity(predictions, targets):
-    return 1
-
+    soft = nn.Softmax()
+    predictions = soft(predictions)
+    targets_i = predictions.diag()
+    log_targets_i = targets_i.log()
+    mean = log_targets_i.mean() * -1
+    ppl = mean.exp()
+    return ppl
 
 def train(config):
 
@@ -74,16 +81,18 @@ def train(config):
         sen = dataset.next_batch(config.batch_size)
         x = torch.tensor(sen[:,:-1]).to(device)
         y = torch.tensor(sen[:,1:]).to(device)
+        
 
         out = model(x)
 
         out = out.view(-1, out.shape[2])
 
-        loss = criterion(out, y.view(-1))   # fixme
+        loss = criterion(out, y.view(-1))  
         loss.backward()
-        accuracy = acc(out, y.view(-1))   # fixme
+        accuracy = acc(out, y.view(-1)) 
         ppl = perplexity(out, y.view(-1))
 
+        results["ppl"].append(ppl.item())
         results["acc"].append(accuracy.item())
         results["loss"].append(loss.item())
 
