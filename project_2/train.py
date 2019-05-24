@@ -36,8 +36,6 @@ def acc(predictions, targets):
 
 
 def perplexity(predictions, targets):
-    soft = nn.Softmax()
-    predictions = soft(predictions)
     targets_i = predictions.diag()
     log_targets_i = targets_i.log()
     mean = log_targets_i.mean() * -1
@@ -64,6 +62,7 @@ def train(config):
     model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
 
     # Setup the loss and optimizer
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
     softmax = torch.nn.Softmax()
 
@@ -87,7 +86,8 @@ def train(config):
 
         out = out.view(-1, out.shape[2])
 
-        loss = perplexity(out, y.view(-1))
+        loss = criterion(out, y.view(-1))
+        ppl = perplexity(softmax(out), y.view(-1))
         loss.backward()
         accuracy = acc(out, y.view(-1)) 
 
@@ -114,7 +114,7 @@ def train(config):
             model.eval()
             h = None
             sentence = []
-            c = torch.randint(0, vocab_len - 1, (1,1), dtype=torch.long).to(device)
+            c = torch.tensor([[dataset.get_id("BOS")]]).to(device)
             c = c.to(device)
             for i in range(config.sample_length - 1):
                 sentence.append(c.squeeze().cpu())
