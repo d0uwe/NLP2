@@ -13,10 +13,11 @@ from torch.distributions.normal import Normal
 from load_data import LoadData
 from pdb import set_trace
 import matplotlib.pyplot as plt
+import pickle
 
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
 
 class Encoder(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
@@ -236,6 +237,7 @@ def main():
     plt.ylabel('ELBO')
     plt.tight_layout()
     plt.savefig("SentenceVAE_ELBO.png")    
+    pickle.dump(results, open("VAE_results.p", 'rb'))
     # torch.save(model, open("SentenceVAE.pt", 'wb'))
     
 
@@ -249,7 +251,7 @@ def print_flags():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', default=2000, type=int,
+    parser.add_argument('--epochs', default=1e6, type=int,
                         help='max number of epochs')
     parser.add_argument('--z_dim', default=20, type=int,
                         help='dimensionality of latent space')
