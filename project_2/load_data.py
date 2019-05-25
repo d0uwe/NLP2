@@ -3,6 +3,7 @@ from random import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+from collections import Counter
 
 
 DATATYPEDICT = {
@@ -62,6 +63,7 @@ class LoadData():
     def create_word_id(self):
         all_data = self.data
         all_data = [item for sentence in all_data for item in sentence]
+        all_data = [x for x, y in Counter(all_data).items() if y > 1]
         all_data.append("UNK")
         all_data.append("PAD")
         all_data = sorted(list(set(all_data)))

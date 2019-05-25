@@ -12,6 +12,7 @@ import torch
 from torch.distributions.normal import Normal
 from load_data import LoadData
 from pdb import set_trace
+import matplotlib.pyplot as plt
 
 
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -36,11 +37,6 @@ class Encoder(nn.Module):
         x_backward = x.flip(1)
         e = self.embedding(x)
         e_backward = self.embedding(x_backward)
-        # f, hf = self.forward_lstm(e)
-        # b, hb = self.backward_lstm(e_backward)
-        # fn = f[:,-1]
-        # b1 = b[:,-1]
-        # fnb1 = torch.cat((fn, b1), 1)
         _, fnb1 = self.rnn(e)
         print(fnb1[0].shape)
         h = self.linear_h(fnb1)
@@ -122,9 +118,7 @@ class SentenceVAE(nn.Module):
         # Encoder
         e = self.embedding(x)
         _, h = self.rnn_encoder(e)
-        print(h.shape)
         fnb1 = h.reshape(h.shape[1], -1)
-        print(fnb1.shape)
         mu = self.hidden2mean(fnb1)
         logvar = self.hidden2logvar(fnb1)
         sigma = torch.exp(logvar * 0.5)
@@ -141,8 +135,8 @@ class SentenceVAE(nn.Module):
         y_hat = sentence.view(-1, self.vocab_size)
         _,sen = sentence.max(2)
 
-        print("IN: ", dataset.convert_to_string(x[0,:].tolist()))
-        print("OUT:", dataset.convert_to_string(sen[0,:].tolist()))
+        # print("IN: ", dataset.convert_to_string(x[0,:].tolist()))
+        # print("OUT:", dataset.convert_to_string(sen[0,:].tolist()))
         y = y.view(-1)
 
         kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum()
@@ -172,10 +166,10 @@ class SentenceVAE(nn.Module):
                     h_flag = False
                 else:
                     out, h = self.rnn_decoder(e, h)
-                
-                word = self.softmax(self.linear_out(out))
-                print(word)
-                sentence.append(word.multinomial(1).item())
+
+                _, word = self.linear_out(out).max(2)
+                word2 = nn.functional.softmax(self.linear_out(out), dim=2).squeeze()
+                sentence.append(word2.multinomial(1).item())
 
             sampled_sens.append(sentence)
  
@@ -199,7 +193,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
-    results = {"elbo": []}
+    results = {"ELBO": [], "sentences": []}
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
@@ -219,7 +213,7 @@ def main():
         loss.backward()
         optimizer.step()
 
-        results["elbo"].append(loss.item())
+        results["ELBO"].append(loss.item())
 
         print(f"[Step {step}] train elbo: {loss}")
 
@@ -227,10 +221,14 @@ def main():
         if step % config.sample_every == 0:
             sentences = model.sample(5, dataset.get_id("BOS"), config.sample_length)
             for s in sentences:
-                print(dataset.convert_to_string(s))
+                sen = dataset.convert_to_string(s)
+                print(sen)
+                results["sentences"].append(sen)
 
+    # Print all generated sentences
+    for s in results["sentences"]:
+        print(s)
 
-    torch.save(model, open("SentenceVAE.pt", 'wb'))
     plt.figure(figsize=(12, 6))
     plt.plot(results["ELBO"], label='ELBO')
     plt.legend()
@@ -238,8 +236,8 @@ def main():
     plt.ylabel('ELBO')
     plt.tight_layout()
     plt.savefig("SentenceVAE_ELBO.png")    
-
-
+    # torch.save(model, open("SentenceVAE.pt", 'wb'))
+    
 
 def print_flags():
   """
