@@ -237,7 +237,7 @@ def main():
     plt.ylabel('ELBO')
     plt.tight_layout()
     plt.savefig("SentenceVAE_ELBO.png")    
-    pickle.dump(results, open("VAE_results.p", 'rb'))
+    pickle.dump(results, open("VAE_results.p", 'wb'))
     # torch.save(model, open("SentenceVAE.pt", 'wb'))
     
 
