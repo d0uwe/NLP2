@@ -35,25 +35,42 @@ def acc(predictions, targets):
     return accuracy
 
 
-# def perplexity(predictions, targets):
-#     targets_i = predictions.diag()
-#     log_targets_i = targets_i.log()
-#     mean = log_targets_i.mean() * -1
-#     ppl = mean.exp()
-#     return ppl
-
-def perplexity(NLLLoss):
-    targets_i = predictions.diag()
-    log_targets_i = targets_i.log()
-    mean = log_targets_i.mean() * -1 
-    ppl = mean.exp()
+def perplexity(model, dataset, device,criterion):
+    sen = dataset.get_validationset()
+    softmax = nn.Softmax(dim=1)
+    mean=0
+    for i in range(170):
+        sent = sen[i:i+10,:]
+        x = torch.tensor(sent[:,:-1]).to(device)
+        y = torch.tensor(sent[:,1:]).to(device)
+        out = model(x)
+        out = out.view(-1, out.shape[2])
+        mean += criterion(out,y.view(-1)).item()
+    mean = mean/170
+    ppl = np.exp(mean)
     return ppl
+
+# def perplexity(model, dataset, device):
+#     sen = dataset.get_dataset()
+#     sen= sen[:100,:]
+#     softmax = nn.Softmax(dim=1)
+#     x = torch.tensor(sen[:,:-1]).to(device)
+#     y = torch.tensor(sen[:,1:]).to(device)
+#     out = model(x)
+#     predictions = softmax(out)
+#     targets_i = predictions[0,0,y].diag()
+#     log_targets_i = targets_i.log()
+#     mean = log_targets_i.sum() * -1
+#     mean = mean/100
+#     ppl = mean.exp()
+#     print(ppl)
+#     return ppl
 
 def train(config):
 
     T = config.temperature
 
-    results = {"acc": [], "loss": [], "sentences": []}
+    results = {"acc": [], "loss": [], "sentences": [], "ppl":[]}
 
     # Initialize the device which to run the model on
     # device = torch.device(config.device)
@@ -61,6 +78,7 @@ def train(config):
 
     # Initialize the dataset and data loader (note the +1)
     dataset = LoadData("TRAIN_DATA")
+    validation = LoadData("VALIDATION_DATA")
 
     padding_idx = dataset.get_id("PAD")
     vocab_len = dataset.vocab_len
@@ -69,7 +87,7 @@ def train(config):
     model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
     
     try:
-        model.load_state_dict(torch.load("RNNLMout.pt"))
+        model.load_state_dict(torch.load("RNNLM.pt"))
         print("Model loaded")
     except:
         print("No previous model found")
@@ -79,7 +97,7 @@ def train(config):
     criterion = nn.CrossEntropyLoss(ignore_index=padding_idx)
     nllloss = nn.NLLLoss(ignore_index=padding_idx)   
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
-
+    softmax = nn.Softmax()
     # Loop over data!!! TODO
     for step in range(int(config.train_steps)):
     # for step, (batch_inputs, batch_targets) in enumerate(data_loader):
@@ -96,10 +114,9 @@ def train(config):
         y = torch.tensor(sen[:,1:]).to(device)
 
         out = model(x)
-
+        
         out = out.view(-1, out.shape[2])
-        loss = criterion(out, y.view(-1)).exp()
-        ppl = loss.exp()
+        loss = criterion(out, y.view(-1))
         loss.backward()
         accuracy = acc(out, y.view(-1)) 
 
@@ -124,6 +141,9 @@ def train(config):
         if step % config.sample_every == 0:
             # Generate some sentences by sampling from the model
             model.eval()
+            ppl = perplexity(model, dataset, device,criterion)
+            print("ppl:", ppl)
+            results["ppl"].append(ppl)
             h = None
             sentence = []
             c = torch.tensor([[dataset.get_id("BOS")]]).to(device)
@@ -150,7 +170,7 @@ def train(config):
 
     pickle.dump(results, open("results_RNN.p", 'wb'))
 
-    torch.save(model, open("RNNLM.pt", 'wb'))
+    torch.save(model.state_dict(), open("RNNLM.pt", 'wb'))
 
     print("Printing sentences:")
 
@@ -158,7 +178,6 @@ def train(config):
         print(s)
 
     return results
-
 
  ################################################################################
  ################################################################################
@@ -189,7 +208,7 @@ if __name__ == "__main__":
     # Misc params
     parser.add_argument('--summary_path', type=str, default="./summaries/", help='Output path for summaries')
     parser.add_argument('--print_every', type=int, default=5, help='How often to print training progress')
-    parser.add_argument('--sample_every', type=int, default=20, help='How often to sample from the model')
+    parser.add_argument('--sample_every', type=int, default=1000, help='How often to sample from the model')
 
     # Added arguments
     parser.add_argument('--temperature', type=float, default=1.0, help='What temperature to use in the sentence sampling')
