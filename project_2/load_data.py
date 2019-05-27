@@ -3,12 +3,7 @@ from random import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-<<<<<<< HEAD
-from string import digits
-=======
 from collections import Counter
->>>>>>> 42100ecb119f9364b067f12fced1e661286d3ad4
-
 
 DATATYPEDICT = {
 "TRAIN_DATA" : "Data/02-21.10way.clean",
