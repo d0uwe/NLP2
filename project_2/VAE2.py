@@ -17,8 +17,8 @@ import pickle
 import numpy as np 
 
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
 
 
 def comp_recon_loss(out, target, mask):
