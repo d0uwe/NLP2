@@ -3,6 +3,7 @@ from random import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+from string import digits
 
 
 DATATYPEDICT = {
@@ -41,7 +42,8 @@ class LoadData():
                 sentence = []
                 for item in line.split(" "):
                     if item[0] != "(":
-                        sentence.append(item.replace(")","").replace("\n","").lower())
+                        word = item.replace(")","").replace("\n","").lower()
+                        sentence.append(word)
                 data.append(["BOS"] + sentence + ["EOS"])
         return data
     
