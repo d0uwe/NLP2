@@ -36,7 +36,7 @@ def acc(predictions, targets):
 
 
 def perplexity(model, dataset, device,criterion):
-    sen = dataset.get_dataset()
+    sen = dataset.get_validationset()
     softmax = nn.Softmax(dim=1)
     mean=0
     for i in range(170):

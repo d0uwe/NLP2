@@ -58,6 +58,19 @@ class LoadData():
                         sentence.append(word)
                 data.append(["BOS"] + sentence + ["EOS"])
         return data
+
+    def read_validation(self):
+        with open(DATATYPEDICT["TEST_DATA"], 'r') as f:
+            data = []
+            lines = f.readlines()
+            for line in lines:
+                sentence = []
+                for item in line.split(" "):
+                    if item[0] != "(":
+                        word = item.replace(")","").replace("\n","").lower()
+                        sentence.append(word)
+                data.append(["BOS"] + sentence + ["EOS"])
+        return data
     
 
     def next_batch(self, batch_size):
@@ -68,7 +81,11 @@ class LoadData():
         self.batch_location = batch_size + self.batch_location
         return batch_data
 
-    def get_dataset(self):
+    def get_validationset(self):
+        validation = self.read_validation()
+        return self.to_semi_tensor(validation)
+    
+    def get_testset(self):
         validation = self.read_validation()
         return self.to_semi_tensor(validation)
     
