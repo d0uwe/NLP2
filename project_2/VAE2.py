@@ -18,7 +18,7 @@ import numpy as np
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
+device = torch.device('cpu')
 
 
 def comp_recon_loss(out, target, mask):
@@ -26,7 +26,7 @@ def comp_recon_loss(out, target, mask):
     log_probs_flat = torch.nn.functional.log_softmax(out_flat, dim=1)
     target_size = target.shape
     target_flat = target.view(-1, 1)
-    losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
+    losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat.long())
     losses = losses_flat.reshape(target_size) * mask.float()
     loss = (losses.sum() / mask.float().sum()) / out.shape[0]
     return loss
@@ -62,7 +62,7 @@ class SentenceVAE(nn.Module):
         lengths = (x != self.padding_idx).sum(1)
         lengths, sort_idx = lengths.sort(descending=True)
         x = x[sort_idx,:].to(device)
-        e = self.embedding(x)
+        e = self.embedding(x.long())
         e = nn.utils.rnn.pack_padded_sequence(e, lengths, batch_first=True)
         _, h = self.rnn_encoder(e)
         fnb1 = h.reshape(h.shape[1], -1)
@@ -135,7 +135,47 @@ class SentenceVAE(nn.Module):
         mu = self.hidden2mean(fnb1)
         logvar = self.hidden2logvar(fnb1)
         sigma = torch.exp(logvar * 0.5)
-        
+
+    def interpolate(self, dataset, sample_length):
+        x = dataset.next_batch(2)
+        x = torch.tensor(x).to(device)
+        # Encoder
+        lengths = (x != self.padding_idx).sum(1)
+        lengths, sort_idx = lengths.sort(descending=True)
+        x = x[sort_idx,:].to(device)
+        e = self.embedding(x.long())
+        e = nn.utils.rnn.pack_padded_sequence(e, lengths, batch_first=True)
+        _, h = self.rnn_encoder(e)
+        fnb1 = h.reshape(h.shape[1], -1)
+        mu = self.hidden2mean(fnb1)
+        logvar = self.hidden2logvar(fnb1)
+        sigma = torch.exp(logvar * 0.5)
+        epsilon = torch.randn(self.z_dim).to(device)
+        z = mu + sigma * epsilon
+        z1 = z[0]
+        z2 = z[1]
+
+        z_collection = [z2]
+        space = np.linspace(0, 1, 10)
+        for num in space[1:]:
+            new_z = z1 * num + z2 * (1 - num)
+            z_collection += [new_z]
+
+        sentences = []
+        for z in z_collection:
+            sos = torch.tensor([[self.bos_id]]).to(device)
+            e = self.embedding(sos)
+            sentence = [sos.item()]
+            h = self.tanh(self.z2hidden(z1)).reshape(1, -1, self.hidden_dim)
+            for i in range(sample_length):
+                out, h = self.rnn_decoder(e)
+                word2 = nn.functional.softmax(self.linear_out(out), dim=2).squeeze()
+                sentence.append(word2.multinomial(1).item())
+            sen = dataset.convert_to_string(sentence)
+            sentences += [sen]
+            print(sen)
+
+        return sentences
 
 
 
@@ -160,6 +200,11 @@ def main():
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
+
+        model.eval()
+        model.interpolate(dataset, 5)
+        model.train()
+
         t1 = time.time()
 
         model.train()
