@@ -12,10 +12,12 @@ import torch
 from torch.distributions.normal import Normal
 from load_data import LoadData
 from pdb import set_trace
+import matplotlib.pyplot as plt
+import pickle
 
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
 
 class Encoder(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
@@ -25,8 +27,6 @@ class Encoder(nn.Module):
         self.z_dim = z_dim
         self.normal = Normal(torch.zeros(z_dim), torch.eye(z_dim))
         self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
-        # self.forward_rnn = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
-        # self.backward_rnn = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
         self.rnn = nn.GRU(vocab_dim, hidden_dim, num_layers, batch_first=True, bidirectional=True)
         self.linear_h = nn.Linear(2*hidden_dim, hidden_dim)
         self.linear_mean = nn.Linear(hidden_dim, z_dim)
@@ -38,16 +38,12 @@ class Encoder(nn.Module):
         x_backward = x.flip(1)
         e = self.embedding(x)
         e_backward = self.embedding(x_backward)
-        # f, hf = self.forward_lstm(e)
-        # b, hb = self.backward_lstm(e_backward)
-        # fn = f[:,-1]
-        # b1 = b[:,-1]
-        # fnb1 = torch.cat((fn, b1), 1)
-        fnb1, h = self.rnn(e)
+        _, fnb1 = self.rnn(e)
         print(fnb1[0].shape)
         h = self.linear_h(fnb1)
         mu = self.linear_mean(h)
-        sigma = self.softplus(self.linear_std(h))
+        logvar = self.linear_std(h)
+        sigma = torch.exp(logvar * 0.5)
 
         return mu, sigma
 
@@ -94,26 +90,54 @@ class Decoder(nn.Module):
 
 
 class SentenceVAE(nn.Module):
-    def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
+    def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, bos_id, num_layers=1):
         super(SentenceVAE, self).__init__()
         self.z_dim = z_dim
         self.vocab_size = vocab_len
         self.padding_idx = padding_idx
-        self.encoder = Encoder(vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=num_layers)
-        self.decoder = Decoder(vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=num_layers)
         self.softmax = nn.Softmax()
+        self.vocab_dim = vocab_dim
+        self.hidden_dim = hidden_dim
+        self.bos_id = bos_id
+
+        # Encoder
+        self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
+        self.rnn_encoder = nn.GRU(vocab_dim, hidden_dim, batch_first=True, bidirectional=True)
+        # self.linear_h = nn.Linear(2*hidden_dim, hidden_dim)
+        self.hidden2mean = nn.Linear(2*hidden_dim, z_dim)
+        self.hidden2logvar = nn.Linear(2*hidden_dim, z_dim)
+
+        # Decoder
+        self.z2hidden = nn.Linear(z_dim, hidden_dim)
+        self.tanh = nn.Tanh()
+        self.embedding = nn.Embedding(vocab_len, vocab_dim)
+        self.rnn_decoder = nn.GRU(vocab_dim, hidden_dim, batch_first=True, bidirectional=True)
+        self.linear_out = nn.Linear(2*hidden_dim, vocab_len)
+        self.softmax = nn.Softmax(dim=2)
 
     def forward(self, x, y):
-        mu, sigma = self.encoder(x)
+        # Encoder
+        e = self.embedding(x)
+        _, h = self.rnn_encoder(e)
+        fnb1 = h.reshape(h.shape[1], -1)
+        mu = self.hidden2mean(fnb1)
+        logvar = self.hidden2logvar(fnb1)
+        sigma = torch.exp(logvar * 0.5)
+
+        # Create latent vector
         epsilon = torch.randn(self.z_dim).to(device)
         z = mu + sigma * epsilon
-        sentence = self.decoder(z, x)
+
+        # Decoder
+        h = self.tanh(self.z2hidden(z)).reshape(1, -1, self.hidden_dim)
+        out, h = self.rnn_decoder(e)
+        sentence = self.linear_out(out)
 
         y_hat = sentence.view(-1, self.vocab_size)
         _,sen = sentence.max(2)
 
-        print("IN: ", dataset.convert_to_string(x[0,:].tolist()))
-        print("OUT:", dataset.convert_to_string(sen[0,:].tolist()))
+        # print("IN: ", dataset.convert_to_string(x[0,:].tolist()))
+        # print("OUT:", dataset.convert_to_string(sen[0,:].tolist()))
         y = y.view(-1)
 
         kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum()
@@ -130,13 +154,26 @@ class SentenceVAE(nn.Module):
         """
         sampled_sens = []
 
+        sos = torch.tensor([[self.bos_id]]).to(device)
+
         for _ in range(n_samples):
+            no_h_flag = True
+            e = self.embedding(sos)
             z = torch.randn(self.z_dim).to(device)
-            sentence = self.decoder.sample(z, BOS_id, sample_length)
+            sentence = [sos.item()]
+            for i in range(sample_length):
+                if no_h_flag:
+                    out, h = self.rnn_decoder(e)
+                    h_flag = False
+                else:
+                    out, h = self.rnn_decoder(e, h)
+
+                _, word = self.linear_out(out).max(2)
+                word2 = nn.functional.softmax(self.linear_out(out), dim=2).squeeze()
+                sentence.append(word2.multinomial(1).item())
+
             sampled_sens.append(sentence)
  
-        # rt = np.sqrt(n_samples)
-        # sampled_ims = torch.stack(sampled_ims, 0).reshape(rt, rt, 1, 28, 28)
         return sampled_sens
 
 
@@ -144,19 +181,20 @@ dataset = LoadData("TRAIN_DATA")
 
 def main():
     # Initialize the dataset and data loader (note the +1)
-    dataset = LoadData("TRAIN_DATA")
+    # dataset = LoadData("TRAIN_DATA")
 
     padding_idx = dataset.get_id("PAD")
+    bos_id = dataset.get_id("BOS")
     vocab_len = dataset.vocab_len
     vocab_dim = config.input_dim
     
-    model = SentenceVAE(vocab_len, vocab_dim, config.z_dim, config.hidden_dim, padding_idx)
+    model = SentenceVAE(vocab_len, vocab_dim, config.z_dim, config.hidden_dim, padding_idx, bos_id)
     model = model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
-    results = {"elbo": []}
+    results = {"ELBO": [], "sentences": []}
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
@@ -176,7 +214,7 @@ def main():
         loss.backward()
         optimizer.step()
 
-        results["elbo"].append(loss.item())
+        results["ELBO"].append(loss.item())
 
         print(f"[Step {step}] train elbo: {loss}")
 
@@ -184,10 +222,14 @@ def main():
         if step % config.sample_every == 0:
             sentences = model.sample(5, dataset.get_id("BOS"), config.sample_length)
             for s in sentences:
-                print(dataset.convert_to_string(s))
+                sen = dataset.convert_to_string(s)
+                print(sen)
+                results["sentences"].append(sen)
 
+    # Print all generated sentences
+    for s in results["sentences"]:
+        print(s)
 
-    torch.save(model, open("SentenceVAE.pt", 'wb'))
     plt.figure(figsize=(12, 6))
     plt.plot(results["ELBO"], label='ELBO')
     plt.legend()
@@ -195,8 +237,9 @@ def main():
     plt.ylabel('ELBO')
     plt.tight_layout()
     plt.savefig("SentenceVAE_ELBO.png")    
-
-
+    pickle.dump(results, open("VAE_results.p", 'wb'))
+    # torch.save(model, open("SentenceVAE.pt", 'wb'))
+    
 
 def print_flags():
   """
@@ -208,7 +251,7 @@ def print_flags():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', default=2000, type=int,
+    parser.add_argument('--epochs', default=1e6, type=int,
                         help='max number of epochs')
     parser.add_argument('--z_dim', default=20, type=int,
                         help='dimensionality of latent space')
