@@ -131,4 +131,5 @@ class LoadData():
             sentence.append(self.get_word(id))
         return " ".join(sentence)
 
-
+    def get_data(self):
+        return self.to_semi_tensor(self.data)
