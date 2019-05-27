@@ -20,72 +20,6 @@ import numpy as np
 # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu')
 
-class Encoder(nn.Module):
-    def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
-        super(Encoder, self).__init__()
-        # self.tanh = nn.Tanh()
-        # self.linear_h = nn.Linear(z_dim, hidden_dim)
-        self.z_dim = z_dim
-        self.normal = Normal(torch.zeros(z_dim), torch.eye(z_dim))
-        self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
-        self.rnn = nn.GRU(vocab_dim, hidden_dim, num_layers, batch_first=True, bidirectional=True)
-        self.linear_h = nn.Linear(2*hidden_dim, hidden_dim)
-        self.linear_mean = nn.Linear(hidden_dim, z_dim)
-        self.linear_std = nn.Linear(hidden_dim, z_dim)
-        self.softplus = nn.Softplus()
-
-
-    def forward(self, x):
-        x_backward = x.flip(1)
-        e = self.embedding(x)
-        e_backward = self.embedding(x_backward)
-        _, fnb1 = self.rnn(e)
-        print(fnb1[0].shape)
-        h = self.linear_h(fnb1)
-        mu = self.linear_mean(h)
-        logvar = self.linear_std(h)
-        sigma = torch.exp(logvar * 0.5)
-
-        return mu, sigma
-
-
-class Decoder(nn.Module):
-    def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
-        super(Decoder, self).__init__()
-        self.linear_h = nn.Linear(z_dim, hidden_dim)
-        self.tanh = nn.Tanh()
-        self.embedding = nn.Embedding(vocab_len, vocab_dim)
-        self.lstm = nn.LSTM(vocab_dim, hidden_dim, num_layers, batch_first=True)
-        self.linear_out = nn.Linear(hidden_dim, vocab_len)
-        self.softmax = nn.Softmax(dim=2)
-        self.vocab_dim = vocab_dim
-        self.hidden_dim = hidden_dim
-
-    def forward(self, z, x):
-        h = self.tanh(self.linear_h(z)).reshape(1, -1, self.hidden_dim)
-        c = torch.zeros_like(h)
-        e = self.embedding(x)
-        sentence = []
-        for i in range(e.shape[1]):
-            emb = e[:,i:i+1,:].reshape(e.shape[0], 1, self.vocab_dim)
-            out, (h,c) = self.lstm(emb, (h, c))
-            sentence.append(out)
-        out = torch.cat(sentence, 1)
-        sen = self.linear_out(out)
-        return sen
-
-    def sample(self, z, BOS_id, sample_length):
-        h = self.tanh(self.linear_h(z)).reshape(1, -1, self.hidden_dim)
-        c = torch.zeros_like(h)
-        x = torch.tensor([[BOS_id]])
-        sample = [BOS_id]
-        for i in range(sample_length):
-            e = self.embedding(x)
-            out, (h,c) = self.lstm(e, (h,c))
-            x = self.softmax(out).multinomial(1).reshape(1,1)
-            sample.append(x.item())
-
-        return sample
 
 def comp_recon_loss(out, target, mask):
     out_flat = out.view(-1, out.shape[-1])
@@ -128,7 +62,7 @@ class SentenceVAE(nn.Module):
         # Encoder
         lengths = (x != self.padding_idx).sum(1)
         lengths, sort_idx = lengths.sort(descending=True)
-        x = x[sort_idx,:]
+        x = x[sort_idx,:].to(device)
         e = self.embedding(x)
         e = nn.utils.rnn.pack_padded_sequence(e, lengths, batch_first=True)
         _, h = self.rnn_encoder(e)
@@ -256,7 +190,6 @@ def main():
 
     plt.figure(figsize=(12, 6))
     plt.plot(results["ELBO mean"], label='ELBO')
-    plt.fill_between(em - ev, em - ev)
     plt.legend()
     plt.xlabel('iterations')
     plt.ylabel('ELBO')
@@ -266,7 +199,6 @@ def main():
 
     plt.figure(figsize=(12, 6))
     plt.plot(results["KL mean"], label='KL')
-    plt.fill_between(km - kv, km + kv)
     plt.legend()
     plt.xlabel('iterations')
     plt.ylabel('KL')
