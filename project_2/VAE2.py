@@ -14,10 +14,11 @@ from load_data import LoadData
 from pdb import set_trace
 import matplotlib.pyplot as plt
 import pickle
+import numpy as np 
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 class Encoder(nn.Module):
     def __init__(self, vocab_len, vocab_dim, z_dim, hidden_dim, padding_idx, num_layers=1):
@@ -86,7 +87,16 @@ class Decoder(nn.Module):
 
         return sample
 
-
+def comp_recon_loss(out, target, mask):
+    out_flat = out.view(-1, out.shape[-1])
+    log_probs_flat = torch.nn.functional.log_softmax(out_flat, dim=1)
+    target_size = target.shape
+    target_flat = target.view(-1, 1)
+    losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
+    losses = losses_flat.reshape(target_size) * mask.float()
+    # losses = losses * mask.float()
+    loss = (losses.sum() / mask.float().sum()) / out.shape[0]
+    return loss
 
 
 class SentenceVAE(nn.Module):
@@ -103,7 +113,6 @@ class SentenceVAE(nn.Module):
         # Encoder
         self.embedding = nn.Embedding(vocab_len, vocab_dim, padding_idx)
         self.rnn_encoder = nn.GRU(vocab_dim, hidden_dim, batch_first=True, bidirectional=True)
-        # self.linear_h = nn.Linear(2*hidden_dim, hidden_dim)
         self.hidden2mean = nn.Linear(2*hidden_dim, z_dim)
         self.hidden2logvar = nn.Linear(2*hidden_dim, z_dim)
 
@@ -115,35 +124,42 @@ class SentenceVAE(nn.Module):
         self.linear_out = nn.Linear(2*hidden_dim, vocab_len)
         self.softmax = nn.Softmax(dim=2)
 
-    def forward(self, x, y):
+    def forward(self, x):
         # Encoder
+        lengths = (x != self.padding_idx).sum(1)
+        lengths, sort_idx = lengths.sort(descending=True)
+        x = x[sort_idx,:]
         e = self.embedding(x)
+        e = nn.utils.rnn.pack_padded_sequence(e, lengths, batch_first=True)
         _, h = self.rnn_encoder(e)
         fnb1 = h.reshape(h.shape[1], -1)
         mu = self.hidden2mean(fnb1)
         logvar = self.hidden2logvar(fnb1)
         sigma = torch.exp(logvar * 0.5)
 
-        # Create latent vector
-        epsilon = torch.randn(self.z_dim).to(device)
-        z = mu + sigma * epsilon
+        kl_losses = []
+        recon_losses = []
+        for i in range(10): # Compute Loss multiple times. 
+            # Create latent vector
+            epsilon = torch.randn(self.z_dim).to(device)
+            z = mu + sigma * epsilon
 
-        # Decoder
-        h = self.tanh(self.z2hidden(z)).reshape(1, -1, self.hidden_dim)
-        out, h = self.rnn_decoder(e)
-        sentence = self.linear_out(out)
+            # Decoder
+            h = self.tanh(self.z2hidden(z)).reshape(1, -1, self.hidden_dim)
+            out, h = self.rnn_decoder(e)
+            out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
+            sentence = self.linear_out(out)
 
-        y_hat = sentence.view(-1, self.vocab_size)
-        _,sen = sentence.max(2)
+            mask = (x != self.padding_idx).reshape(x.shape)
 
-        # print("IN: ", dataset.convert_to_string(x[0,:].tolist()))
-        # print("OUT:", dataset.convert_to_string(sen[0,:].tolist()))
-        y = y.view(-1)
+            kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum() / x.shape[0] 
+            # recon_loss = nn.functional.cross_entropy(y_hat, y, reduction='sum', ignore_index=self.padding_idx)
+            recon_loss = comp_recon_loss(sentence, x, mask)
 
-        kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum()
-        recon_loss = nn.functional.cross_entropy(y_hat, y, reduction='sum', ignore_index=self.padding_idx)
+            kl_losses.append(kl_loss.item())
+            recon_losses.append(recon_loss.item())
 
-        return (kl_loss + recon_loss) / x.shape[0]
+        return (kl_loss + recon_loss), kl_losses, recon_losses
 
         
     def sample(self, n_samples, BOS_id, sample_length):
@@ -194,7 +210,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters())
     criterion = nn.CrossEntropyLoss()
 
-    results = {"ELBO": [], "sentences": []}
+    results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": []}
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
@@ -205,16 +221,18 @@ def main():
 
         # Create x and y
         sen = dataset.next_batch(config.batch_size)
-        x = torch.tensor(sen[:,:-1]).to(device)
+        x = torch.tensor(sen).to(device)
         y = torch.tensor(sen[:,1:]).to(device)
-        loss = model(x, y)
+        loss, kl_losses, recon_losses = model(x)
 
-        # sen = torch.tensor(sen[:,:-1]).to(device)
-        # loss = model(sen)
+        elbos = np.array(kl_losses) + np.array(recon_losses)
         loss.backward()
         optimizer.step()
 
-        results["ELBO"].append(loss.item())
+        results["ELBO mean"].append(np.mean(elbos))
+        results["ELBO std"].append(np.sqrt(np.var(elbos)))
+        results["KL mean"].append(np.mean(kl_losses))
+        results["KL std"].append(np.sqrt(np.var(kl_losses)))
 
         print(f"[Step {step}] train elbo: {loss}")
 
@@ -230,13 +248,31 @@ def main():
     for s in results["sentences"]:
         print(s)
 
+    em = np.array(results["ELBO mean"])
+    ev = np.array(results["ELBO std"])
+    km = np.array(results["KL mean"])
+    kv = np.array(results["KL std"])
+    
+
     plt.figure(figsize=(12, 6))
-    plt.plot(results["ELBO"], label='ELBO')
+    plt.plot(results["ELBO mean"], label='ELBO')
+    plt.fill_between(em - ev, em - ev)
     plt.legend()
     plt.xlabel('iterations')
     plt.ylabel('ELBO')
     plt.tight_layout()
     plt.savefig("SentenceVAE_ELBO.png")    
+    plt.close()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(results["KL mean"], label='KL')
+    plt.fill_between(km - kv, km + kv)
+    plt.legend()
+    plt.xlabel('iterations')
+    plt.ylabel('KL')
+    plt.tight_layout()
+    plt.savefig("SentenceVAE_KL.png")    
+
     pickle.dump(results, open("VAE_results.p", 'wb'))
     # torch.save(model, open("SentenceVAE.pt", 'wb'))
     
