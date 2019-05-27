@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import Counter
 
-
 DATATYPEDICT = {
 "TRAIN_DATA" : "Data/02-21.10way.clean",
 "VALIDATION_DATA" : "Data/22.auto.clean",
@@ -42,7 +41,8 @@ class LoadData():
                 sentence = []
                 for item in line.split(" "):
                     if item[0] != "(":
-                        sentence.append(item.replace(")","").replace("\n","").lower())
+                        word = item.replace(")","").replace("\n","").lower()
+                        sentence.append(word)
                 data.append(["BOS"] + sentence + ["EOS"])
         return data
     

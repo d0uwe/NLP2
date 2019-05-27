@@ -30,17 +30,22 @@ def acc(predictions, targets):
     _, y_pred = predictions.max(1)
     y_gold = targets
 
-    accuracy = torch.tensor(y_pred == y_gold, dtype=torch.float).mean()
+    accuracy = torch.tensor(y_pred == y_gold, dtype=torch.float).mean().item()
 
     return accuracy
 
 
-def perplexity(predictions, targets):
-    soft = nn.Softmax()
-    predictions = soft(predictions)
+# def perplexity(predictions, targets):
+#     targets_i = predictions.diag()
+#     log_targets_i = targets_i.log()
+#     mean = log_targets_i.mean() * -1
+#     ppl = mean.exp()
+#     return ppl
+
+def perplexity(NLLLoss):
     targets_i = predictions.diag()
     log_targets_i = targets_i.log()
-    mean = log_targets_i.mean() * -1
+    mean = log_targets_i.mean() * -1 
     ppl = mean.exp()
     return ppl
 
@@ -62,10 +67,18 @@ def train(config):
     vocab_dim = config.input_dim
     # Initialize the model that we are going to use
     model = RNNLanguageModel(vocab_len, vocab_dim, config.hidden_dim, config.lstm_num_layers, padding_idx, device)
+    
+    try:
+        model.load_state_dict(torch.load("RNNLMout.pt"))
+        print("Model loaded")
+    except:
+        print("No previous model found")
 
+    softmax = nn.Softmax(dim=1)
     # Setup the loss and optimizer
+    criterion = nn.CrossEntropyLoss(ignore_index=padding_idx)
+    nllloss = nn.NLLLoss(ignore_index=padding_idx)   
     optimizer = optim.RMSprop(model.parameters(), lr=config.learning_rate)  # fixme
-    softmax = torch.nn.Softmax()
 
     # Loop over data!!! TODO
     for step in range(int(config.train_steps)):
@@ -81,17 +94,16 @@ def train(config):
         sen = dataset.next_batch(config.batch_size)
         x = torch.tensor(sen[:,:-1]).to(device)
         y = torch.tensor(sen[:,1:]).to(device)
-        
 
         out = model(x)
 
         out = out.view(-1, out.shape[2])
-
-        loss = perplexity(out, y.view(-1))
+        loss = criterion(out, y.view(-1)).exp()
+        ppl = loss.exp()
         loss.backward()
         accuracy = acc(out, y.view(-1)) 
 
-        results["acc"].append(accuracy.item())
+        results["acc"].append(accuracy)
         results["loss"].append(loss.item())
 
         optimizer.step()
@@ -114,11 +126,13 @@ def train(config):
             model.eval()
             h = None
             sentence = []
-            c = torch.randint(0, vocab_len - 1, (1,1), dtype=torch.long).to(device)
+            c = torch.tensor([[dataset.get_id("BOS")]]).to(device)
             c = c.to(device)
             for i in range(config.sample_length - 1):
                 sentence.append(c.squeeze().cpu())
                 out, h = model.predict(c, h)
+                # if randint(0,10) < 3:
+                #     out[0,0,out.argmax()] = 0
                 c = torch.tensor([[out.argmax()]]).to(device)
 
             sentence.append(c.squeeze())
@@ -136,7 +150,7 @@ def train(config):
 
     pickle.dump(results, open("results_RNN.p", 'wb'))
 
-    torch.save(model, open("LSTM.pt", 'wb'))
+    torch.save(model, open("RNNLM.pt", 'wb'))
 
     print("Printing sentences:")
 
@@ -175,11 +189,11 @@ if __name__ == "__main__":
     # Misc params
     parser.add_argument('--summary_path', type=str, default="./summaries/", help='Output path for summaries')
     parser.add_argument('--print_every', type=int, default=5, help='How often to print training progress')
-    parser.add_argument('--sample_every', type=int, default=100, help='How often to sample from the model')
+    parser.add_argument('--sample_every', type=int, default=20, help='How often to sample from the model')
 
     # Added arguments
     parser.add_argument('--temperature', type=float, default=1.0, help='What temperature to use in the sentence sampling')
-    parser.add_argument('--sample_length', type=int, default=50, help='Length of the sampled sentences')
+    parser.add_argument('--sample_length', type=int, default=20, help='Length of the sampled sentences')
 
     config = parser.parse_args()
 
