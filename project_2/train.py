@@ -131,8 +131,8 @@ def train(config):
             for i in range(config.sample_length - 1):
                 sentence.append(c.squeeze().cpu())
                 out, h = model.predict(c, h)
-                if randint(0,10) < 3:
-                    out[0,0,out.argmax()] = 0
+                # if randint(0,10) < 3:
+                #     out[0,0,out.argmax()] = 0
                 c = torch.tensor([[out.argmax()]]).to(device)
 
             sentence.append(c.squeeze())
