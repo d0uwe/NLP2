@@ -17,8 +17,8 @@ import pickle
 import numpy as np 
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# device = torch.device('cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 
 
 def comp_recon_loss(out, target, mask):
@@ -28,7 +28,6 @@ def comp_recon_loss(out, target, mask):
     target_flat = target.view(-1, 1)
     losses_flat = -torch.gather(log_probs_flat, dim=1, index=target_flat)
     losses = losses_flat.reshape(target_size) * mask.float()
-    # losses = losses * mask.float()
     loss = (losses.sum() / mask.float().sum()) / out.shape[0]
     return loss
 
@@ -81,13 +80,12 @@ class SentenceVAE(nn.Module):
             # Decoder
             h = self.tanh(self.z2hidden(z)).reshape(1, -1, self.hidden_dim)
             out, h = self.rnn_decoder(e)
-            out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True)
+            out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True, padding_value=self.padding_idx)
             sentence = self.linear_out(out)
 
             mask = (x != self.padding_idx).reshape(x.shape)
 
             kl_loss = -0.5 * (1 + sigma.log() - mu.pow(2) - sigma).sum() / x.shape[0] 
-            # recon_loss = nn.functional.cross_entropy(y_hat, y, reduction='sum', ignore_index=self.padding_idx)
             recon_loss = comp_recon_loss(sentence, x, mask)
 
             kl_losses.append(kl_loss.item())
@@ -118,13 +116,27 @@ class SentenceVAE(nn.Module):
                 else:
                     out, h = self.rnn_decoder(e, h)
 
-                _, word = self.linear_out(out).max(2)
                 word2 = nn.functional.softmax(self.linear_out(out), dim=2).squeeze()
                 sentence.append(word2.multinomial(1).item())
 
             sampled_sens.append(sentence)
  
         return sampled_sens
+
+    def reconstruct(self, sentence):
+        if len(sentence) < 13:
+            return None
+
+        lengths = sentence.shape[1]
+        e = self.embedding(sentence)
+        e = nn.utils.rnn.pack_padded_sequence(e, lengths, batch_first=True)
+        _, h = self.rnn_encoder(e)
+        fnb1 = h.reshape(h.shape[1], -1)
+        mu = self.hidden2mean(fnb1)
+        logvar = self.hidden2logvar(fnb1)
+        sigma = torch.exp(logvar * 0.5)
+        
+
 
 
 dataset = LoadData("TRAIN_DATA")
@@ -141,7 +153,7 @@ def main():
     model = SentenceVAE(vocab_len, vocab_dim, config.z_dim, config.hidden_dim, padding_idx, bos_id)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     criterion = nn.CrossEntropyLoss()
 
     results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": []}
