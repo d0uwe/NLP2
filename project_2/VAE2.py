@@ -167,7 +167,7 @@ class SentenceVAE(nn.Module):
             sos = torch.tensor([[self.bos_id]]).to(device)
             e = self.embedding(sos)
             sentence = [sos.item()]
-            h = self.tanh(self.z2hidden(z1)).reshape(1, -1, self.hidden_dim)
+            h = self.tanh(self.z2hidden(z)).reshape(1, -1, self.hidden_dim)
             for i in range(sample_length):
                 out, h = self.rnn_decoder(e)
                 word2 = nn.functional.softmax(self.linear_out(out), dim=2).squeeze()
