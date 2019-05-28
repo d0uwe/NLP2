@@ -17,7 +17,7 @@ import pickle
 import numpy as np 
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device = torch.device('cpu')
 
 
@@ -178,17 +178,21 @@ class SentenceVAE(nn.Module):
 
         return sentences
 
-def perplexity(model, dataset, device,criterion):
+def perplexity(model, dataset, device, criterion, padding_idx):
     sen = dataset.get_validationset()
     softmax = nn.Softmax(dim=-1)
     mean=0
     for i in range(170):
         sent = sen[i:i+10,:]
-        x = torch.tensor(sent[:,:-1]).to(device)
-        y = torch.tensor(sent[:,1:]).to(device)
-        _,_,_,out = model(x)
-        out = out.view(-1, out.shape[2])
-        mean += criterion(out,y.view(-1)).item()
+        x = torch.tensor(sent).to(device)
+        lengths = (x != padding_idx).sum(1)
+        # set_trace()
+        lengths, sort_idx = lengths.sort(descending=True)
+        x = x[sort_idx,:].to(device)
+        x_packed = nn.utils.rnn.pack_padded_sequence(x, lengths, batch_first=True)
+        x, _ = torch.nn.utils.rnn.pad_packed_sequence(x_packed, batch_first=True, padding_value=padding_idx)
+        loss,_,_,_ = model(x)
+        mean += loss.item()
     mean = mean/170
     ppl = np.exp(mean)
     return ppl
@@ -210,7 +214,7 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
 
-    results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": []}
+    results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "PPL": [], "sentences": []}
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
@@ -234,7 +238,7 @@ def main():
         loss.backward()
         optimizer.step()
 
-        results["PPL"].append(perplexity(model, dataset, device, criterion))
+        results["PPL"].append(perplexity(model, dataset, device, criterion, padding_idx))
         results["ELBO mean"].append(np.mean(elbos))
         results["ELBO std"].append(np.sqrt(np.var(elbos)))
         results["KL mean"].append(np.mean(kl_losses))
