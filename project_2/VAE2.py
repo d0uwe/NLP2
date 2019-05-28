@@ -18,7 +18,7 @@ import numpy as np
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = torch.device('cpu')
+#device = torch.device('cpu')
 
 
 def comp_recon_loss(out, target, mask):
@@ -210,14 +210,16 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
 
-    results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": []}
+    results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": [], "PPL":[]}
 
     for step in range(int(config.epochs)):
         # Only for time measurement of step through network
 
-        model.eval()
-        model.interpolate(dataset, 5)
-        model.train()
+        if step % 10 == 0:
+            print("interpolations for step: ", step)
+            model.eval()
+            model.interpolate(dataset, 5)
+            model.train()
 
         t1 = time.time()
 
@@ -234,7 +236,7 @@ def main():
         loss.backward()
         optimizer.step()
 
-        results["PPL"].append(perplexity(model, dataset, device, criterion))
+        #results["PPL"].append(perplexity(model, dataset, device, criterion))
         results["ELBO mean"].append(np.mean(elbos))
         results["ELBO std"].append(np.sqrt(np.var(elbos)))
         results["KL mean"].append(np.mean(kl_losses))
