@@ -231,20 +231,21 @@ def main():
         # Create x and y
         sen = dataset.next_batch(config.batch_size)
         x = torch.tensor(sen).to(device)
-        y = torch.tensor(sen[:,1:]).to(device)
         loss, kl_losses, recon_losses, logp = model(x)
 
         elbos = np.array(kl_losses) + np.array(recon_losses)
         loss.backward()
         optimizer.step()
 
-        results["PPL"].append(perplexity(model, dataset, device, criterion, padding_idx))
+        ppl = perplexity(model, dataset, device, criterion, padding_idx)
+
+        results["PPL"].append(ppl)
         results["ELBO mean"].append(np.mean(elbos))
         results["ELBO std"].append(np.sqrt(np.var(elbos)))
         results["KL mean"].append(np.mean(kl_losses))
         results["KL std"].append(np.sqrt(np.var(kl_losses)))
 
-        print(f"[Step {step}] train elbo: {loss}")
+        print(f"[Step {step}] train elbo: {loss} Perplexity {ppl}" )
 
         # Sample from model
         if step % config.sample_every == 0:
