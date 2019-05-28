@@ -82,6 +82,7 @@ class SentenceVAE(nn.Module):
             out, h = self.rnn_decoder(e)
             out, _ = torch.nn.utils.rnn.pad_packed_sequence(out, batch_first=True, padding_value=self.padding_idx)
             sentence = self.linear_out(out)
+            # logp = nn.functional.log_softmax(sentence, dim=-1)
 
             mask = (x != self.padding_idx).reshape(x.shape)
 
@@ -91,7 +92,7 @@ class SentenceVAE(nn.Module):
             kl_losses.append(kl_loss.item())
             recon_losses.append(recon_loss.item())
 
-        return (kl_loss + recon_loss), kl_losses, recon_losses
+        return (kl_loss + recon_loss), kl_losses, recon_losses, sentence
 
         
     def sample(self, n_samples, BOS_id, sample_length):
@@ -137,7 +138,20 @@ class SentenceVAE(nn.Module):
         sigma = torch.exp(logvar * 0.5)
         
 
-
+def perplexity(model, dataset, device,criterion):
+    sen = dataset.get_validationset()
+    softmax = nn.Softmax(dim=-1)
+    mean=0
+    for i in range(170):
+        sent = sen[i:i+10,:]
+        x = torch.tensor(sent[:,:-1]).to(device)
+        y = torch.tensor(sent[:,1:]).to(device)
+        _,_,_,out = model(x)
+        out = out.view(-1, out.shape[2])
+        mean += criterion(out,y.view(-1)).item()
+    mean = mean/170
+    ppl = np.exp(mean)
+    return ppl
 
 dataset = LoadData("TRAIN_DATA")
 
@@ -153,7 +167,7 @@ def main():
     model = SentenceVAE(vocab_len, vocab_dim, config.z_dim, config.hidden_dim, padding_idx, bos_id)
     model = model.to(device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     criterion = nn.CrossEntropyLoss()
 
     results = {"ELBO mean": [], "ELBO std": [], "KL mean": [], "KL std": [], "sentences": []}
@@ -169,12 +183,13 @@ def main():
         sen = dataset.next_batch(config.batch_size)
         x = torch.tensor(sen).to(device)
         y = torch.tensor(sen[:,1:]).to(device)
-        loss, kl_losses, recon_losses = model(x)
+        loss, kl_losses, recon_losses, logp = model(x)
 
         elbos = np.array(kl_losses) + np.array(recon_losses)
         loss.backward()
         optimizer.step()
 
+        results["PPL"].append(perplexity(model, dataset, device, criterion))
         results["ELBO mean"].append(np.mean(elbos))
         results["ELBO std"].append(np.sqrt(np.var(elbos)))
         results["KL mean"].append(np.mean(kl_losses))
@@ -245,6 +260,8 @@ if __name__ == "__main__":
                         help="sample interval")
     parser.add_argument('--sample_length', default=100, type=int, 
                         help="sample size")
+    parser.add_argument('--lr', default=1e-5, type=float, 
+                        help="learning rate")
 
     config = parser.parse_args()
     print_flags()
