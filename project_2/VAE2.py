@@ -264,7 +264,7 @@ def main():
     kv = np.array(results["KL std"])
     
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(6, 3))
     plt.plot(results["ELBO mean"], label='ELBO')
     plt.legend()
     plt.xlabel('iterations')
@@ -273,13 +273,23 @@ def main():
     plt.savefig("SentenceVAE_ELBO.png")    
     plt.close()
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(6, 3))
     plt.plot(results["KL mean"], label='KL')
     plt.legend()
     plt.xlabel('iterations')
     plt.ylabel('KL')
     plt.tight_layout()
     plt.savefig("SentenceVAE_KL.png")    
+    plt.close()
+
+    plt.figure(figsize=(6, 3))
+    plt.plot(results["PPl"], label='Perplexity')
+    plt.legend()
+    plt.xlabel('iterations')
+    plt.ylabel('Perplexity')
+    plt.tight_layout()
+    plt.savefig("SentenceVAE_PPL.png")    
+    plt.close()
 
     pickle.dump(results, open("VAE_results.p", 'wb'))
     # torch.save(model, open("SentenceVAE.pt", 'wb'))
